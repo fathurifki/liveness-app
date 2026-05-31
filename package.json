@@ -1,0 +1,84 @@
+{
+  "name": "@liveness/face-detection-sdk",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Production-ready face liveness detection SDK using MediaPipe FaceMesh + ONNX models",
+  "main": "./dist/index.umd.js",
+  "module": "./dist/index.es.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.es.js",
+      "require": "./dist/index.umd.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./styles.css": "./dist/style.css"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "liveness",
+    "face-detection",
+    "anti-spoof",
+    "biometric",
+    "mediapipe",
+    "onnx",
+    "react",
+    "typescript"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/face-liveness-sdk"
+  },
+  "scripts": {
+    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
+    "dev:client": "vite",
+    "dev:server": "tsx watch server/index.ts",
+    "build": "tsc && vite build",
+    "build:lib": "tsc && vite build --mode lib",
+    "preview": "vite preview",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "db:init": "tsx -e \"import('./server/db.js').then(m => m.initDatabase())\"",
+    "prepublishOnly": "npm run build:lib",
+    "postinstall": "node -e \"const{cpSync,mkdirSync}=require('fs');mkdirSync('public/mediapipe/wasm',{recursive:true});cpSync('node_modules/@mediapipe/tasks-vision/wasm','public/mediapipe/wasm',{recursive:true});\""
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.0",
+    "archiver": "^8.0.0",
+    "better-sqlite3": "^12.10.0",
+    "cors": "^2.8.6",
+    "date-fns": "^4.3.0",
+    "express": "^5.2.1",
+    "jspdf": "^4.2.1",
+    "multer": "^2.1.1",
+    "nanoid": "^5.1.11",
+    "onnxruntime-web": "^1.19.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-icons": "^5.6.0",
+    "react-router-dom": "^7.15.1",
+    "recharts": "^3.8.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.1.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "autoprefixer": "^10.4.19",
+    "concurrently": "^9.2.1",
+    "onnxruntime-node": "^1.26.0",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.3",
+    "tsx": "^4.22.3",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.11"
+  }
+}
