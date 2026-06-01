@@ -191,4 +191,22 @@ export const api = {
     })
     return res.json()
   },
+
+  async generateReactProject(data: any): Promise<{ blob: Blob; fileName: string }> {
+    const res = await fetch(`${API_BASE_URL}/builds/react-project`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+
+    if (!res.ok) {
+      const payload = await res.json().catch(() => ({ error: 'Generate failed' }))
+      throw new Error(payload.error || 'Generate failed')
+    }
+
+    const disposition = res.headers.get('Content-Disposition')
+    const fileName = disposition?.match(/filename="?([^";]+)"?/)?.[1] || `${data.projectName || 'liveness-react-app'}.zip`
+    const blob = await res.blob()
+    return { blob, fileName }
+  },
 }

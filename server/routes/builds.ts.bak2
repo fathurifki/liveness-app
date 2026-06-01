@@ -178,8 +178,26 @@ const config = {
 
 function App() {
   return (
-    <main>
-      <section aria-label="Liveness verification">
+    <main className="app-shell">
+      <section className="hero-panel">
+        <p className="eyebrow">${preset.toUpperCase()} preset</p>
+        <h1>${appTitle}</h1>
+        <p className="hero-copy">
+          Face liveness flow siap dipasang ke onboarding, KYC, atau akses akun.
+        </p>
+        <dl className="config-grid">
+          <div>
+            <dt>API URL</dt>
+            <dd>{import.meta.env.VITE_LIVENESS_API_URL || '${apiUrl}'}</dd>
+          </div>
+          <div>
+            <dt>Public key</dt>
+            <dd>{import.meta.env.VITE_LIVENESS_PUBLIC_KEY ? 'Configured' : 'Not set'}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section className="camera-panel" aria-label="Liveness verification">
         <LivenessCamera
           config={config}
           onResult={(result) => {
@@ -197,6 +215,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   </React.StrictMode>,
 )
 `,
+    },
+    {
     },
     {
       path: 'tailwind.config.js',

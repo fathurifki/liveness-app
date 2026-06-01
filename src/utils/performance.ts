@@ -42,17 +42,11 @@ export async function preloadAllModels() {
 
 /**
  * Check if models are already loaded
+ * Note: This function is disabled in bundled SDK mode
  */
 export function areModelsLoaded(): boolean {
-  try {
-    const { isReady } = require('../adapters/mediapipeAdapter')
-    const { isOnnxReady } = require('../adapters/onnxAntiSpoofAdapter')
-    const { isEyeStateReady, isSmileDetectReady } = require('../adapters/onnxChallengeAdapter')
-
-    return isReady() && isOnnxReady() && isEyeStateReady() && isSmileDetectReady()
-  } catch {
-    return false
-  }
+  // Disabled in bundled mode - always return false
+  return false
 }
 
 /**

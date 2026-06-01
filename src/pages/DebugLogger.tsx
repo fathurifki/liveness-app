@@ -37,7 +37,7 @@ export default function DebugLogger() {
 
       const newLog: LogEntry = {
         id: logIdCounter.current++,
-        timestamp: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 }),
+        timestamp: new Date().toISOString().slice(11, 23),
         level: levels[Math.floor(Math.random() * levels.length)],
         message: messages[Math.floor(Math.random() * messages.length)],
       }

@@ -4,6 +4,7 @@ import type {
   LivenessEngineConfig,
   LivenessCheckResult,
   Challenge,
+  ChallengeType,
   ChallengeResult,
   AntiSpoofResult,
   QualityCheckResult,
@@ -746,7 +747,7 @@ export function useLiveness(options: UseLivenessOptions = {}): UseLivenessReturn
       await initFaceLandmarker()
 
       // Attempt ONNX model load (non-blocking — falls back to heuristic if absent)
-      initAntiSpoofModel().catch(() => {
+      initAntiSpoofModel(config.antiSpoofModelUrl).catch(() => {
         console.info('ONNX anti-spoof model not found — using heuristic anti-spoof')
       })
       initChallengeModels().catch(() => {

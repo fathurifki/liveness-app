@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { MdHistory, MdCheckCircle, MdCancel, MdFilterList, MdSearch, MdDownload, MdChevronLeft, MdChevronRight } from 'react-icons/md'
+import { MdHistory, MdCheckCircle, MdCancel, MdSearch, MdDownload, MdChevronLeft, MdChevronRight } from 'react-icons/md'
 import { format } from 'date-fns'
 import jsPDF from 'jspdf'
 
@@ -174,6 +174,7 @@ export default function History() {
 
   const handleDownloadPDF = (entry: HistoryEntry) => {
     const doc = new jsPDF()
+    const setFontStyle = (style: 'normal' | 'bold') => doc.setFont('helvetica', style)
 
     // Header
     doc.setFontSize(20)
@@ -193,9 +194,9 @@ export default function History() {
     doc.setTextColor(0)
 
     doc.text('Verification ID:', 20, y)
-    doc.setFont(undefined, 'bold')
+    setFontStyle('bold')
     doc.text(entry.id, 70, y)
-    doc.setFont(undefined, 'normal')
+    setFontStyle('normal')
     y += 10
 
     doc.text('Timestamp:', 20, y)
@@ -204,9 +205,9 @@ export default function History() {
 
     doc.text('Status:', 20, y)
     doc.setTextColor(entry.status === 'passed' ? 0 : 220, entry.status === 'passed' ? 150 : 50, entry.status === 'passed' ? 0 : 50)
-    doc.setFont(undefined, 'bold')
+    setFontStyle('bold')
     doc.text(entry.status.toUpperCase(), 70, y)
-    doc.setFont(undefined, 'normal')
+    setFontStyle('normal')
     doc.setTextColor(0)
     y += 10
 
@@ -247,61 +248,61 @@ export default function History() {
           // New format (flat strings)
           if (info.faceDetection) {
             doc.text('Face Detection:', 25, y)
-            doc.setFont(undefined, 'bold')
+            setFontStyle('bold')
             doc.text(info.faceDetection, 70, y)
-            doc.setFont(undefined, 'normal')
+            setFontStyle('normal')
             y += 6
           }
           if (info.antiSpoof) {
             doc.text('Anti-Spoof:', 25, y)
-            doc.setFont(undefined, 'bold')
+            setFontStyle('bold')
             doc.text(info.antiSpoof, 70, y)
-            doc.setFont(undefined, 'normal')
+            setFontStyle('normal')
             y += 6
           }
           if (info.blinkDetection) {
             doc.text('Blink Detection:', 25, y)
-            doc.setFont(undefined, 'bold')
+            setFontStyle('bold')
             doc.text(info.blinkDetection, 70, y)
-            doc.setFont(undefined, 'normal')
+            setFontStyle('normal')
             y += 6
           }
           if (info.smileDetection) {
             doc.text('Smile Detection:', 25, y)
-            doc.setFont(undefined, 'bold')
+            setFontStyle('bold')
             doc.text(info.smileDetection, 70, y)
-            doc.setFont(undefined, 'normal')
+            setFontStyle('normal')
             y += 6
           }
         } else if (hasOldFormat) {
           // Old format (nested object)
           doc.text('Face Detection:', 25, y)
-          doc.setFont(undefined, 'bold')
+          setFontStyle('bold')
           doc.text('MediaPipe Face Mesh', 70, y)
-          doc.setFont(undefined, 'normal')
+          setFontStyle('normal')
           y += 6
 
           if (info.antiSpoof.modelName) {
             doc.text('Anti-Spoof:', 25, y)
-            doc.setFont(undefined, 'bold')
+            setFontStyle('bold')
             doc.text(info.antiSpoof.modelName, 70, y)
-            doc.setFont(undefined, 'normal')
+            setFontStyle('normal')
             y += 6
           }
 
           if (info.challenges?.blink) {
             doc.text('Blink Detection:', 25, y)
-            doc.setFont(undefined, 'bold')
+            setFontStyle('bold')
             doc.text(info.challenges.blink.modelName || 'EAR Heuristic', 70, y)
-            doc.setFont(undefined, 'normal')
+            setFontStyle('normal')
             y += 6
           }
 
           if (info.challenges?.smile) {
             doc.text('Smile Detection:', 25, y)
-            doc.setFont(undefined, 'bold')
+            setFontStyle('bold')
             doc.text(info.challenges.smile.modelName || 'Corner-lift Heuristic', 70, y)
-            doc.setFont(undefined, 'normal')
+            setFontStyle('normal')
             y += 6
           }
         }
@@ -475,7 +476,7 @@ export default function History() {
         doc.setTextColor(0)
       })
 
-      doc.setFont(undefined, 'normal')
+      setFontStyle('normal')
     }
 
     // Footer

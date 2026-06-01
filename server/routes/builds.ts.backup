@@ -178,8 +178,26 @@ const config = {
 
 function App() {
   return (
-    <main>
-      <section aria-label="Liveness verification">
+    <main className="app-shell">
+      <section className="hero-panel">
+        <p className="eyebrow">${preset.toUpperCase()} preset</p>
+        <h1>${appTitle}</h1>
+        <p className="hero-copy">
+          Face liveness flow siap dipasang ke onboarding, KYC, atau akses akun.
+        </p>
+        <dl className="config-grid">
+          <div>
+            <dt>API URL</dt>
+            <dd>{import.meta.env.VITE_LIVENESS_API_URL || '${apiUrl}'}</dd>
+          </div>
+          <div>
+            <dt>Public key</dt>
+            <dd>{import.meta.env.VITE_LIVENESS_PUBLIC_KEY ? 'Configured' : 'Not set'}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section className="camera-panel" aria-label="Liveness verification">
         <LivenessCamera
           config={config}
           onResult={(result) => {
@@ -196,6 +214,107 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <App />
   </React.StrictMode>,
 )
+`,
+    },
+    {
+      path: 'tailwind.config.js',
+      content: `:root {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #101114;
+  background: #f5f0e8;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(320px, 0.9fr) minmax(360px, 1.1fr);
+  gap: clamp(24px, 5vw, 72px);
+  padding: clamp(24px, 5vw, 72px);
+  background:
+    radial-gradient(circle at top left, ${primary}22, transparent 34%),
+    radial-gradient(circle at bottom right, ${accent}26, transparent 34%),
+    linear-gradient(135deg, #fffaf2 0%, #f3eee5 52%, #e8ecf6 100%);
+}
+
+.hero-panel, .camera-panel {
+  border: 1px solid rgba(16, 17, 20, 0.1);
+  border-radius: ${radius};
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: 0 28px 80px rgba(16, 17, 20, 0.12);
+  backdrop-filter: blur(24px);
+}
+
+.hero-panel {
+  align-self: center;
+  padding: clamp(28px, 5vw, 56px);
+}
+
+.eyebrow {
+  margin: 0 0 18px;
+  color: ${primary};
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  max-width: 720px;
+  font-size: clamp(42px, 7vw, 92px);
+  line-height: 0.92;
+  letter-spacing: -0.06em;
+}
+
+.hero-copy {
+  max-width: 540px;
+  margin: 24px 0 0;
+  color: #585b65;
+  font-size: clamp(16px, 2vw, 20px);
+}
+
+.config-grid {
+  display: grid;
+  gap: 12px;
+  margin: 36px 0 0;
+}
+
+.config-grid div {
+  padding: 16px;
+  border: 1px solid rgba(16, 17, 20, 0.08);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.config-grid dt {
+  color: #7c828a;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.config-grid dd {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+
+.camera-panel {
+  overflow: hidden;
+  min-height: 660px;
+}
+
+@media (max-width: 960px) {
+  .app-shell { grid-template-columns: 1fr; }
+}
 `,
     },
     {

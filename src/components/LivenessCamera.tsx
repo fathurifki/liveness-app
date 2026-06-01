@@ -11,8 +11,7 @@ import type {
 } from "../core/types";
 import { DebugOverlay } from "./DebugOverlay";
 import { normalizeEnabledChallenges } from "../utils/challengeDetector";
-import { generateReport, getModelInfo } from "../utils/reportGenerator";
-import type { ReportData } from "../utils/reportGenerator";
+import { getModelInfo } from "../utils/reportGenerator";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -175,7 +174,7 @@ export function LivenessCamera({
   const [showIntro, setShowIntro] = useState(true);
 
   // ── Debug state ────────────────────────────────────────────────────────────
-  const [debugEnabled, setDebugEnabled] = useState(false);
+  const [debugEnabled] = useState(false);
   const [debugMetrics, setDebugMetrics] = useState<DebugMetrics | null>(null);
   const [debugLogs, setDebugLogs] = useState<
     Array<{
@@ -208,10 +207,6 @@ export function LivenessCamera({
   );
 
   // ── Report state ───────────────────────────────────────────────────────────
-  const [latestResult, setLatestResult] = useState<LivenessCheckResult | null>(
-    null,
-  );
-  const [latestScreenshot, setLatestScreenshot] = useState<string | null>(null);
   const [challengeScreenshots, setChallengeScreenshots] = useState<
     Array<{
       challengeType: string;
@@ -374,9 +369,6 @@ export function LivenessCamera({
     const result = latestResultRef.current;
     if (!video || !result || video.videoWidth === 0) return;
 
-    // Save result for report
-    setLatestResult(result);
-
     const c = document.createElement("canvas");
     c.width = video.videoWidth;
     c.height = video.videoHeight;
@@ -387,9 +379,6 @@ export function LivenessCamera({
     ctx.scale(-1, 1);
     ctx.drawImage(video, 0, 0);
     const screenshot = c.toDataURL("image/jpeg", 0.88);
-
-    // Save screenshot for report
-    setLatestScreenshot(screenshot);
 
     // Call onCapture if provided
     if (onCapture) {
@@ -429,9 +418,9 @@ export function LivenessCamera({
       failReason: result.failReason,
       antiSpoofScore: result.antiSpoof?.score,
       qualityChecks: {
-        brightness: result.quality?.brightness || false,
-        sharpness: result.quality?.sharpness || false,
-        faceSize: result.quality?.faceSize || false,
+        brightness: result.quality?.brightness > 0,
+        sharpness: result.quality?.blurScore > 0,
+        faceSize: result.quality?.faceSize > 0,
       },
       screenshot: screenshot,
       screenshots:
@@ -515,31 +504,6 @@ export function LivenessCamera({
     setShowIntro(true);
     setShowSettings(false);
     setChallengeScreenshots([]);
-  };
-
-  // ── Report Generator ──────────────────────────────────────────────────────
-  const handleGenerateReport = async () => {
-    if (!latestResult) {
-      alert("Tidak ada hasil verifikasi untuk di-report");
-      return;
-    }
-
-    const reportData: ReportData = {
-      result: latestResult,
-      config: mergedConfig as LivenessEngineConfig,
-      screenshot: latestScreenshot,
-      debugMetrics: debugMetrics,
-      modelInfo: getModelInfo(),
-      timestamp: Date.now(),
-    };
-
-    try {
-      await generateReport(reportData);
-      alert("✓ Report PDF berhasil di-generate!");
-    } catch (error) {
-      console.error("Failed to generate report:", error);
-      alert("✗ Gagal generate report: " + (error as Error).message);
-    }
   };
 
   const isIntroIdle = showIntro && status === "idle";

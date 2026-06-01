@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { format } from 'date-fns'
 import { MdVideocam, MdMemory, MdArchive } from 'react-icons/md'
 
@@ -55,7 +55,7 @@ export default function Dashboard() {
     )
   }
 
-  const { overview, labelDistribution, recentSessions, labelingProgress, latestBuilds, modelStats } = stats
+  const { overview, labelDistribution, recentSessions, latestBuilds, modelStats } = stats
 
   const labeledPercentage = overview.total_sessions > 0
     ? Math.round((overview.labeled_sessions / overview.total_sessions) * 100)
@@ -179,8 +179,8 @@ export default function Dashboard() {
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  {pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                  {pieData.map((item, index) => (
+                    <Cell key={`cell-${item.name}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                   ))}
                 </Pie>
                 <Tooltip />

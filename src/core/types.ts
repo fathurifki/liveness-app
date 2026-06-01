@@ -48,6 +48,7 @@ export interface LivenessEngineConfig {
   challengeCount: number          // default: 2
   challengeTimeoutMs: number      // default: 6000 (ms per challenge)
   passScore: number               // default: 70  (0-100)
+  antiSpoofModelUrl?: string      // optional: URL to custom ONNX model
   enabledChallenges: ChallengeType[] // default: all types
 }
 

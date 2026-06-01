@@ -1,341 +1,557 @@
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
+import { MdCheckCircle, MdCloudDownload, MdCheck } from 'react-icons/md'
 import { api } from '../lib/api'
-import { MdBuild } from 'react-icons/md'
+
+type PackageManager = 'npm' | 'pnpm' | 'yarn'
+type ChallengeType = 'blink' | 'nod_top' | 'nod_bottom' | 'yaw_left' | 'yaw_right' | 'smile' | 'open_mouth' | 'gaze_target'
 
 interface Model {
   id: string
   name: string
   version: string
+  file_path: string
+  accuracy: number | null
+  fpr: number | null
+  fnr: number | null
+  created_at: number
   is_active: number
 }
 
-interface Config {
-  id: string
-  name: string
-  preset_type: string
+const packageManagers: PackageManager[] = ['npm', 'pnpm', 'yarn']
+const inputClass = 'h-12 rounded-md border border-hairline bg-canvas px-4 text-[15px] text-ink outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15'
+
+const challengeIcons: Record<ChallengeType, React.ReactNode> = {
+  blink: (
+    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 5C7 5 3 12 3 12s4 7 9 7 9-7 9-7-4-7-9-7z" />
+    </svg>
+  ),
+  nod_top: (
+    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 19V5M5 12l7-7 7 7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  nod_bottom: (
+    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 5v14M5 12l7 7 7-7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  yaw_left: (
+    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  yaw_right: (
+    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  smile: (
+    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01" strokeLinecap="round" />
+    </svg>
+  ),
+  open_mouth: (
+    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="14" r="3" />
+      <path d="M9 9h.01M15 9h.01" strokeLinecap="round" />
+    </svg>
+  ),
+  gaze_target: (
+    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+      <circle cx="12" cy="12" r="2" fill="currentColor" />
+    </svg>
+  ),
 }
 
-interface Build {
-  id: string
-  version: string
-  model_id: string
-  config_id: string
-  output_path: string
-  created_at: number
+const challengeOptions: Array<{ type: ChallengeType; label: string }> = [
+  { type: 'blink', label: 'Kedip' },
+  { type: 'nod_top', label: 'Angguk ↑' },
+  { type: 'nod_bottom', label: 'Angguk ↓' },
+  { type: 'yaw_left', label: 'Yaw ←' },
+  { type: 'yaw_right', label: 'Yaw →' },
+  { type: 'smile', label: 'Senyum' },
+  { type: 'open_mouth', label: 'Buka Mulut' },
+  { type: 'gaze_target', label: 'Lihat Titik' },
+]
+
+function FieldLabel({ children }: { children: string }) {
+  return <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted">{children}</span>
+}
+
+function TextField({
+  label,
+  value,
+  placeholder,
+  mono,
+  required,
+  onChange,
+}: {
+  label: string
+  value: string
+  placeholder: string
+  mono?: boolean
+  required?: boolean
+  onChange: (value: string) => void
+}) {
+  return (
+    <label className="grid gap-2">
+      <FieldLabel>{label}</FieldLabel>
+      <input
+        value={value}
+        required={required}
+        onChange={(event) => onChange(event.target.value)}
+        className={`${inputClass} ${mono ? 'font-mono' : ''}`}
+        placeholder={placeholder}
+      />
+    </label>
+  )
+}
+
+function NumberField({
+  label,
+  value,
+  min,
+  max,
+  step,
+  suffix,
+  onChange,
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  suffix?: string
+  onChange: (value: number) => void
+}) {
+  const formattedValue = Number.isInteger(value) ? String(value) : value.toFixed(2)
+
+  return (
+    <label className="rounded-xl border border-hairline-soft bg-surface-soft p-5">
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <FieldLabel>{label}</FieldLabel>
+        <span className="font-mono text-sm font-medium text-ink">
+          {formattedValue}{suffix || ''}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="w-full accent-primary"
+      />
+    </label>
+  )
+}
+
+function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
 }
 
 export default function Builder() {
+  const [projectName, setProjectName] = useState('acme-liveness-check')
+  const [appTitle, setAppTitle] = useState('ACME Liveness Gate')
+  const [apiUrl, setApiUrl] = useState('http://localhost:3001')
+  const [publicKey, setPublicKey] = useState('')
+  const [packageManager, setPackageManager] = useState<PackageManager>('npm')
+
+  // SDK Settings - Challenge Configuration
+  const [enabledChallenges, setEnabledChallenges] = useState<ChallengeType[]>(['blink', 'smile'])
+  const [challengeCount, setChallengeCount] = useState(2)
+  const [timeoutSeconds, setTimeoutSeconds] = useState(6)
+
+  // SDK Settings - Thresholds
+  const [antiSpoofThreshold, setAntiSpoofThreshold] = useState(0.25)
+  const [passScore, setPassScore] = useState(70)
+
+  // SDK Settings - Quality
+  const [minBrightness, setMinBrightness] = useState(40)
+  const [maxBrightness, setMaxBrightness] = useState(220)
+  const [minBlurScore, setMinBlurScore] = useState(18)
+  const [minFaceSize, setMinFaceSize] = useState(0.10)
+  const [maxFaceSize, setMaxFaceSize] = useState(0.80)
+
+  const [generating, setGenerating] = useState(false)
+  const [generatedFile, setGeneratedFile] = useState('')
   const [models, setModels] = useState<Model[]>([])
-  const [configs, setConfigs] = useState<Config[]>([])
-  const [builds, setBuilds] = useState<Build[]>([])
-  const [selectedModel, setSelectedModel] = useState('')
-  const [selectedConfig, setSelectedConfig] = useState('')
-  const [version, setVersion] = useState('')
-  const [building, setBuilding] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [selectedModelIds, setSelectedModelIds] = useState<string[]>([])
+  const [loadingModels, setLoadingModels] = useState(true)
 
   useEffect(() => {
-    loadData()
+    api.getModels()
+      .then((data: any) => {
+        const modelList = Array.isArray(data) ? data : data.models || []
+        setModels(modelList)
+        if (modelList.length > 0) {
+          setSelectedModelIds([modelList[0].id])
+        }
+      })
+      .catch((err: Error) => console.error('Failed to load models:', err))
+      .finally(() => setLoadingModels(false))
   }, [])
 
-  const loadData = async () => {
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!projectName || !appTitle || !apiUrl) return
+
+    setGenerating(true)
+    setGeneratedFile('')
+
     try {
-      const [modelsData, configsData, buildsData] = await Promise.all([
-        api.getModels(),
-        api.getConfigs(),
-        api.getBuilds(),
-      ])
-
-      setModels(modelsData.models)
-      setConfigs(configsData.configs)
-      setBuilds(buildsData.builds)
-
-      const activeModel = modelsData.models.find((m: Model) => m.is_active === 1)
-      if (activeModel) {
-        setSelectedModel(activeModel.id)
+      const payload = {
+        projectName,
+        appTitle,
+        apiUrl,
+        publicKey,
+        packageManager,
+        modelIds: selectedModelIds,
+        liveness: {
+          enabledChallenges,
+          challengeCount: Math.min(challengeCount, enabledChallenges.length),
+          timeoutSeconds,
+          antiSpoofThreshold,
+          passScore,
+          minBrightness,
+          maxBrightness,
+          minBlurScore,
+          minFaceSize,
+          maxFaceSize,
+        },
       }
+
+      const { blob, fileName } = await api.generateReactProject(payload)
+      downloadBlob(blob, fileName)
+      setGeneratedFile(fileName)
     } catch (error) {
-      console.error('Failed to load data:', error)
+      console.error('Generation failed:', error)
+      alert('Failed to generate project. Check console for details.')
     } finally {
-      setLoading(false)
+      setGenerating(false)
     }
   }
-
-  const handleBuild = async () => {
-    if (!selectedModel || !selectedConfig || !version) {
-      alert('Please select model, config, and enter version')
-      return
-    }
-
-    setBuilding(true)
-    try {
-      await api.createBuild({
-        version,
-        modelId: selectedModel,
-        configId: selectedConfig,
-      })
-
-      alert(`SDK v${version} built successfully!`)
-      setVersion('')
-      loadData()
-    } catch (error) {
-      console.error('Failed to build SDK:', error)
-      alert('Build failed')
-    } finally {
-      setBuilding(false)
-    }
-  }
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this build?')) {
-      return
-    }
-
-    try {
-      await api.deleteBuild(id)
-      loadData()
-    } catch (error) {
-      console.error('Failed to delete build:', error)
-      alert('Delete failed')
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-muted">Loading...</div>
-      </div>
-    )
-  }
-
-  const selectedModelData = models.find(m => m.id === selectedModel)
-  const selectedConfigData = configs.find(c => c.id === selectedConfig)
 
   return (
-    <div className="min-h-screen bg-canvas">
+    <div className="min-h-screen bg-gradient-to-b from-canvas via-surface-soft/30 to-canvas">
       <div className="max-w-7xl mx-auto px-8 py-12">
-        {/* Header */}
-        <div className="mb-12">
-          <h1 className="text-display-md text-ink font-normal">SDK Builder</h1>
-          <p className="text-body mt-2">Build and package SDK with models and configurations</p>
+        <div className="mb-10">
+          <h1 className="text-display-sm font-semibold tracking-tight text-ink">Project Builder</h1>
+          <p className="mt-3 text-body">
+            Generate a ready-to-run React project with liveness SDK pre-configured.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Build Form */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Model Selection */}
-            <div className="bg-canvas border border-hairline rounded-xl p-6">
-              <h3 className="text-title-md text-ink mb-4">1. Select Model</h3>
-              {models.length === 0 ? (
-                <p className="text-sm text-muted">No models available. Upload a model first.</p>
-              ) : (
-                <div className="space-y-2">
-                  {models.map((model) => (
-                    <label
-                      key={model.id}
-                      className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                        selectedModel === model.id
-                          ? 'border-primary bg-surface-soft'
-                          : 'border-hairline hover:border-hairline-soft'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="model"
-                        value={model.id}
-                        checked={selectedModel === model.id}
-                        onChange={(e) => setSelectedModel(e.target.value)}
-                        className="mr-3 accent-primary"
-                      />
-                      <div className="flex-1">
-                        <div className="font-semibold text-ink">{model.name}</div>
-                        <div className="text-sm text-muted">Version {model.version}</div>
-                      </div>
-                      {model.is_active === 1 && (
-                        <span className="px-3 py-1 bg-primary text-white text-xs font-semibold rounded-pill">
-                          Active
-                        </span>
-                      )}
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Config Selection */}
-            <div className="bg-canvas border border-hairline rounded-xl p-6">
-              <h3 className="text-title-md text-ink mb-4">2. Select Configuration</h3>
-              {configs.length === 0 ? (
-                <p className="text-sm text-muted">No configurations available. Create a config first.</p>
-              ) : (
-                <div className="space-y-2">
-                  {configs.map((config) => (
-                    <label
-                      key={config.id}
-                      className={`flex items-center p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                        selectedConfig === config.id
-                          ? 'border-primary bg-surface-soft'
-                          : 'border-hairline hover:border-hairline-soft'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="config"
-                        value={config.id}
-                        checked={selectedConfig === config.id}
-                        onChange={(e) => setSelectedConfig(e.target.value)}
-                        className="mr-3 accent-primary"
-                      />
-                      <div className="flex-1">
-                        <div className="font-semibold text-ink">{config.name}</div>
-                        <div className="text-sm text-muted capitalize">{config.preset_type}</div>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Version Input */}
-            <div className="bg-canvas border border-hairline rounded-xl p-6">
-              <h3 className="text-title-md text-ink mb-4">3. Set Version</h3>
-              <input
-                type="text"
-                value={version}
-                onChange={(e) => setVersion(e.target.value)}
-                placeholder="e.g., 1.0.0"
-                className="w-full px-4 py-3 border border-hairline rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-lg"
+        <form onSubmit={handleSubmit} className="space-y-8">
+          {/* Project Info */}
+          <section className="rounded-xl border border-hairline bg-canvas p-8 shadow-[0_4px_12px_rgba(0,0,0,0.04)]">
+            <h2 className="mb-6 text-title-md text-ink">Project Info</h2>
+            <div className="grid gap-5 md:grid-cols-2">
+              <TextField
+                label="Project Name"
+                value={projectName}
+                onChange={setProjectName}
+                placeholder="acme-liveness-check"
+                mono
+                required
               />
-              <p className="text-sm text-muted mt-2">Use semantic versioning (major.minor.patch)</p>
+              <TextField
+                label="App Title"
+                value={appTitle}
+                onChange={setAppTitle}
+                placeholder="ACME Liveness Gate"
+                required
+              />
+              <TextField
+                label="API URL"
+                value={apiUrl}
+                onChange={setApiUrl}
+                placeholder="http://localhost:3001"
+                mono
+                required
+              />
+              <TextField
+                label="Public Key"
+                value={publicKey}
+                onChange={setPublicKey}
+                placeholder="Optional browser-safe key"
+                mono
+              />
             </div>
+          </section>
 
-            {/* Build Button */}
-            <div className="bg-canvas border-2 border-primary rounded-xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-title-md text-ink">Ready to Build?</h3>
-                  <p className="text-sm text-muted">This will generate an NPM package</p>
-                </div>
-                <div className="w-12 h-12 bg-surface-strong rounded-xl flex items-center justify-center">
-                  <MdBuild className="w-6 h-6 text-primary" />
-                </div>
+          {/* Package Manager */}
+          <section className="rounded-xl border border-hairline bg-canvas p-8 shadow-[0_4px_12px_rgba(0,0,0,0.04)]">
+            <h2 className="mb-6 text-title-md text-ink">Package Manager</h2>
+            <div className="flex gap-3">
+              {packageManagers.map((pm) => (
+                <button
+                  key={pm}
+                  type="button"
+                  onClick={() => setPackageManager(pm)}
+                  className={`flex-1 rounded-lg border py-3 text-sm font-semibold transition ${
+                    packageManager === pm
+                      ? 'border-primary bg-primary/5 text-primary'
+                      : 'border-hairline bg-canvas text-body hover:border-primary/40'
+                  }`}
+                >
+                  {pm}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {/* SDK Settings - Challenge Types */}
+          <section className="rounded-xl border border-hairline bg-canvas p-8 shadow-[0_4px_12px_rgba(0,0,0,0.04)]">
+            <h2 className="mb-2 text-title-md text-ink">Challenge Types</h2>
+            <p className="mb-6 text-body-sm text-body">
+              Pilih jenis challenge yang akan digunakan untuk verifikasi liveness.
+            </p>
+            <div className="grid grid-cols-4 gap-3">
+              {challengeOptions.map(({ type, label }) => {
+                const isEnabled = enabledChallenges.includes(type)
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => {
+                      setEnabledChallenges((prev) =>
+                        prev.includes(type)
+                          ? prev.length === 1 ? prev : prev.filter((t) => t !== type)
+                          : [...prev, type]
+                      )
+                    }}
+                    className={`flex flex-col items-center gap-2 rounded-lg border p-4 text-sm font-semibold transition ${
+                      isEnabled
+                        ? 'border-primary bg-primary/5 text-primary'
+                        : 'border-hairline bg-canvas text-body hover:border-primary/40'
+                    }`}
+                  >
+                    {challengeIcons[type]}
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <NumberField
+                label="Jumlah Challenge"
+                value={challengeCount}
+                min={1}
+                max={enabledChallenges.length}
+                step={1}
+                onChange={setChallengeCount}
+              />
+              <NumberField
+                label="Timeout per Challenge"
+                value={timeoutSeconds}
+                min={3}
+                max={30}
+                step={1}
+                suffix="s"
+                onChange={setTimeoutSeconds}
+              />
+            </div>
+          </section>
+
+          {/* SDK Settings - Thresholds */}
+          <section className="rounded-xl border border-hairline bg-canvas p-8 shadow-[0_4px_12px_rgba(0,0,0,0.04)]">
+            <h2 className="mb-2 text-title-md text-ink">Detection Thresholds</h2>
+            <p className="mb-6 text-body-sm text-body">
+              Atur threshold untuk anti-spoof dan passing score.
+            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <NumberField
+                label="Anti-Spoof Threshold"
+                value={antiSpoofThreshold}
+                min={0.1}
+                max={0.6}
+                step={0.05}
+                onChange={setAntiSpoofThreshold}
+              />
+              <NumberField
+                label="Pass Score"
+                value={passScore}
+                min={50}
+                max={95}
+                step={5}
+                suffix="%"
+                onChange={setPassScore}
+              />
+            </div>
+          </section>
+
+          {/* SDK Settings - Quality */}
+          <section className="rounded-xl border border-hairline bg-canvas p-8 shadow-[0_4px_12px_rgba(0,0,0,0.04)]">
+            <h2 className="mb-2 text-title-md text-ink">Quality Settings</h2>
+            <p className="mb-6 text-body-sm text-body">
+              Atur threshold kualitas gambar untuk brightness, sharpness, dan ukuran wajah.
+            </p>
+            <div className="grid gap-4">
+              <NumberField
+                label="Min Brightness"
+                value={minBrightness}
+                min={20}
+                max={100}
+                step={5}
+                onChange={setMinBrightness}
+              />
+              <NumberField
+                label="Max Brightness"
+                value={maxBrightness}
+                min={180}
+                max={240}
+                step={5}
+                onChange={setMaxBrightness}
+              />
+              <NumberField
+                label="Min Blur Score (Sharpness)"
+                value={minBlurScore}
+                min={10}
+                max={50}
+                step={1}
+                onChange={setMinBlurScore}
+              />
+              <div className="grid gap-4 md:grid-cols-2">
+                <NumberField
+                  label="Min Face Size"
+                  value={minFaceSize}
+                  min={0.05}
+                  max={0.30}
+                  step={0.01}
+                  suffix="%"
+                  onChange={setMinFaceSize}
+                />
+                <NumberField
+                  label="Max Face Size"
+                  value={maxFaceSize}
+                  min={0.50}
+                  max={0.95}
+                  step={0.01}
+                  suffix="%"
+                  onChange={setMaxFaceSize}
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* Anti-Spoof Models */}
+          <section className="rounded-xl border border-hairline bg-canvas p-8 shadow-[0_4px_12px_rgba(0,0,0,0.04)]">
+            <h2 className="mb-2 text-title-md text-ink">Anti-Spoof Models</h2>
+            <p className="mb-6 text-body-sm text-body">
+              Select one or more models to bundle. The first selected model will be the default.
+            </p>
+
+            {loadingModels ? (
+              <div className="text-body-sm text-muted">Loading models...</div>
+            ) : models.length === 0 ? (
+              <div className="text-body-sm text-muted">No models available</div>
+            ) : (
+              <div className="grid gap-3">
+                {models.map((model) => {
+                  const isSelected = selectedModelIds.includes(model.id)
+                  const isFirst = selectedModelIds[0] === model.id
+
+                  return (
+                    <button
+                      key={model.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedModelIds((prev) =>
+                          prev.includes(model.id)
+                            ? prev.filter((id) => id !== model.id)
+                            : [...prev, model.id]
+                        )
+                      }}
+                      className={`flex items-start gap-4 rounded-lg border p-5 text-left transition ${
+                        isSelected
+                          ? 'border-primary bg-primary/5'
+                          : 'border-hairline bg-canvas hover:border-primary/40'
+                      }`}
+                    >
+                      <div
+                        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition ${
+                          isSelected
+                            ? 'border-primary bg-primary'
+                            : 'border-hairline bg-canvas'
+                        }`}
+                      >
+                        {isSelected && <MdCheck className="h-4 w-4 text-white" />}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-ink">{model.name}</span>
+                          <span className="text-xs text-muted">v{model.version}</span>
+                          {isFirst && (
+                            <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
+                              Default
+                            </span>
+                          )}
+                        </div>
+                        {model.accuracy !== null && (
+                          <p className="mt-1 text-sm text-body">
+                            Accuracy: {(model.accuracy * 100).toFixed(1)}%
+                            {model.fpr !== null && ` • FPR: ${(model.fpr * 100).toFixed(2)}%`}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* Generate Button */}
+          <div className="rounded-xl border border-hairline bg-canvas p-6 shadow-[0_4px_12px_rgba(0,0,0,0.04)]">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-title-md text-ink">Ready to Generate</h2>
+                <p className="mt-1 text-body-sm text-body">
+                  ZIP contains React source, env template, and package setup.
+                </p>
               </div>
               <button
-                onClick={handleBuild}
-                disabled={building || !selectedModel || !selectedConfig || !version}
-                className="w-full px-6 py-4 bg-primary hover:bg-primary-active disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-pill font-semibold text-lg transition-colors"
+                type="submit"
+                disabled={generating}
+                className="flex w-full items-center justify-center gap-2 rounded-pill bg-primary py-4 text-title-sm font-semibold text-white shadow-lg transition hover:bg-primary-active focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto md:px-8"
               >
-                {building ? 'Building...' : 'Build SDK'}
+                {generating ? (
+                  <>
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>Generating...</span>
+                  </>
+                ) : (
+                  <>
+                    <MdCloudDownload className="h-5 w-5" />
+                    <span>Generate Project</span>
+                  </>
+                )}
               </button>
             </div>
-          </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Build Summary */}
-            <div className="bg-canvas border border-hairline rounded-xl p-6">
-              <h3 className="text-title-md text-ink mb-4">Build Summary</h3>
-              <div className="space-y-3 text-sm">
-                <div>
-                  <div className="text-muted mb-1">Model</div>
-                  <div className="font-semibold text-ink">
-                    {selectedModelData ? `${selectedModelData.name} v${selectedModelData.version}` : 'Not selected'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-muted mb-1">Configuration</div>
-                  <div className="font-semibold text-ink">
-                    {selectedConfigData ? selectedConfigData.name : 'Not selected'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-muted mb-1">SDK Version</div>
-                  <div className="font-semibold text-ink">
-                    {version || 'Not set'}
-                  </div>
-                </div>
-                <div className="pt-3 border-t border-hairline">
-                  <div className="text-muted mb-1">Output</div>
-                  <div className="font-mono text-xs text-ink bg-surface-soft p-2 rounded">
-                    {version ? `liveness-sdk-v${version}.zip` : 'N/A'}
-                  </div>
-                </div>
+            {generatedFile && (
+              <div className="mt-4 flex items-center gap-2 rounded-lg bg-semantic-up/10 px-4 py-3 text-sm text-semantic-up">
+                <MdCheckCircle className="h-5 w-5 flex-shrink-0" />
+                <span className="font-medium">Downloaded: {generatedFile}</span>
               </div>
-            </div>
-
-            {/* Build Instructions */}
-            <div className="bg-canvas border border-hairline rounded-xl p-6">
-              <h3 className="text-title-md text-ink mb-4">After Build</h3>
-              <div className="space-y-2 text-sm text-body">
-                <p>1. Package will be saved to <code className="bg-surface-soft px-1 rounded font-mono text-xs">data/builds/</code></p>
-                <p>2. Test the SDK locally</p>
-                <p>3. Publish to NPM registry</p>
-                <p>4. Developers can install with:</p>
-                <pre className="bg-surface-soft p-2 rounded text-xs font-mono mt-2 text-ink">
-                  npm install @yourcompany/liveness-sdk
-                </pre>
-              </div>
-            </div>
+            )}
           </div>
-        </div>
-
-        {/* Recent Builds */}
-        <div className="mt-12 bg-canvas border border-hairline rounded-xl p-6">
-          <h3 className="text-title-md text-ink mb-6">Recent Builds</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-hairline">
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-muted">Version</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-muted">Model</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-muted">Config</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-muted">Created</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-muted">Output</th>
-                  <th className="text-right py-3 px-4 text-sm font-semibold text-muted">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {builds.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-8 text-muted">
-                      No builds yet. Create your first SDK build above.
-                    </td>
-                  </tr>
-                ) : (
-                  builds.map((build) => {
-                    const model = models.find(m => m.id === build.model_id)
-                    const config = configs.find(c => c.id === build.config_id)
-                    return (
-                      <tr key={build.id} className="border-b border-hairline-soft hover:bg-surface-soft">
-                        <td className="py-3 px-4 text-sm font-semibold text-ink">v{build.version}</td>
-                        <td className="py-3 px-4 text-sm text-body">
-                          {model ? `${model.name} v${model.version}` : 'Unknown'}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-body">
-                          {config ? config.name : 'Unknown'}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-body">
-                          {new Date(build.created_at * 1000).toLocaleString()}
-                        </td>
-                        <td className="py-3 px-4 text-xs font-mono text-muted">
-                          {build.output_path}
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <button
-                            onClick={() => handleDelete(build.id)}
-                            className="text-semantic-down hover:opacity-80 text-sm font-semibold"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        </form>
       </div>
     </div>
   )
