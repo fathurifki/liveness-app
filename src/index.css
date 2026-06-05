@@ -36,22 +36,20 @@ body {
   font-family: 'JetBrains Mono', 'Geist Mono', monospace;
 }
 
-/* Liveness SDK — glass surfaces */
-.liveness-glass-surface {
-  background: rgba(255, 255, 255, 0.62);
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  box-shadow:
-    0 8px 32px rgba(0, 82, 255, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85);
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
-}
+@layer utilities {
+  .liveness-glass-surface {
+    @apply backdrop-blur-xl bg-white/80 border border-white/60;
+    box-shadow:
+      0 2px 4px 0 rgba(69, 184, 232, 0.08),
+      0 6px 20px -2px rgba(69, 184, 232, 0.18),
+      0 20px 52px -8px rgba(69, 184, 232, 0.22);
+  }
 
-.liveness-glass-camera {
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  box-shadow:
-    0 20px 56px rgba(0, 82, 255, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.55);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
+  .liveness-glass-camera {
+    @apply backdrop-blur-md bg-white/25 border border-white/40;
+    box-shadow:
+      0 2px 4px 0 rgba(69, 184, 232, 0.08),
+      0 8px 28px -4px rgba(69, 184, 232, 0.20),
+      0 20px 52px -8px rgba(69, 184, 232, 0.18);
+  }
 }

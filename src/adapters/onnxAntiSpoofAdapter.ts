@@ -252,8 +252,10 @@ function logitsToLiveProbability(logits: Float32Array, mode: PreprocessMode = 'i
   }
 
   if (n === 2) {
-    // Binary: [spoof=0, live=1]  — both Colab and two-class MiniFASNet
-    return exps[1] / sum
+    // Disambiguate by preprocessMode:
+    //   'minifasnet_bgr' → [live=0, spoof=1]  (MiniFASNet official)
+    //   'imagenet_rgb'   → [spoof=0, live=1]  (Colab binary)
+    return mode === 'minifasnet_bgr' ? exps[0] / sum : exps[1] / sum
   }
 
   if (n === 3) {

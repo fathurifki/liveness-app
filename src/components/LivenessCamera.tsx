@@ -507,14 +507,21 @@ export function LivenessCamera({
   };
 
   const isIntroIdle = showIntro && status === "idle";
+  const isResultIdle = status === "passed" || status === "failed";
+  const isCardLayout = isIntroIdle || isResultIdle;
 
   const progressPercent = useMemo(() => {
-    if (totalChallenges === 0) return 0;
+    // When not actively in a challenge — show completed-only percentage, not climbing
+    if (status !== "challenge" || totalChallenges === 0 || !currentChallenge) {
+      return completedChallenges > 0
+        ? Math.round((completedChallenges / Math.max(totalChallenges, 1)) * 100)
+        : 0;
+    }
     const baseProgress = (completedChallenges / totalChallenges) * 100;
-    if (status === "challenge" && challengeProgress > 0) {
+    if (challengeProgress > 0) {
       const currentChallengeWeight = 100 / totalChallenges;
       const currentProgress =
-        ((100 - challengeProgress) / 100) * currentChallengeWeight;
+        (challengeProgress / 100) * currentChallengeWeight;
       return Math.min(Math.round(baseProgress + currentProgress), 100);
     }
     return Math.round(baseProgress);
@@ -523,6 +530,7 @@ export function LivenessCamera({
     completedChallenges,
     status,
     challengeProgress,
+    currentChallenge,
   ]);
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -530,16 +538,16 @@ export function LivenessCamera({
     <div className="flex min-h-[calc(100dvh-4rem)] w-full flex-col items-center justify-center bg-gradient-to-b from-canvas via-surface-soft/30 to-canvas px-4 py-4 sm:px-6 sm:py-6">
       <div
         className={`flex w-full flex-col ${
-          isIntroIdle
+          isCardLayout
             ? "max-w-[320px] sm:max-w-[340px]"
             : "max-w-[min(100%,380px)] sm:max-w-[min(100%,420px)] md:max-w-[min(100%,460px)]"
         }`}
       >
         {/* Header */}
-        <div className={`text-center ${isIntroIdle ? "mb-6 sm:mb-8" : "mb-4 sm:mb-5"}`}>
+        <div className={`text-center ${isCardLayout ? "mb-6 sm:mb-8" : "mb-4 sm:mb-5"}`}>
           <h1
             className={`font-semibold tracking-tight text-ink ${
-              isIntroIdle
+              isCardLayout
                 ? "mb-2 text-[clamp(1.5rem,5vw,2rem)]"
                 : "mb-1.5 text-[clamp(1.25rem,4vw,1.75rem)]"
             }`}
@@ -553,8 +561,53 @@ export function LivenessCamera({
           )}
         </div>
 
-        {/* Intro screen — standalone layout for SDK onboarding */}
-        {isIntroIdle ? (
+        {/* Result screen — glass card with brand shadow */}
+        {isResultIdle ? (
+          <div className="flex flex-col">
+            <div className="liveness-glass-surface flex flex-col items-center gap-4 rounded-2xl px-6 pb-8 pt-10">
+              {status === "passed" ? (
+                <>
+                  <div className="flex h-20 w-20 items-center justify-center rounded-full border border-white/60 bg-semantic-up/15 backdrop-blur-sm">
+                    <svg
+                      className="h-12 w-12 text-semantic-up"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  </div>
+                  <p className="text-center text-[clamp(1.125rem,3.5vw,1.5rem)] font-semibold text-ink">
+                    Verifikasi Berhasil
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/60 bg-semantic-down/15 backdrop-blur-sm sm:h-20 sm:w-20">
+                    <MdClose className="h-10 w-10 text-semantic-down sm:h-12 sm:w-12" />
+                  </div>
+                  <p className="text-center text-[clamp(1.125rem,3.5vw,1.5rem)] font-semibold text-ink">
+                    Verifikasi Gagal
+                  </p>
+                </>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleReset}
+              className="mt-8 w-full rounded-pill bg-primary py-3.5 text-title-sm font-semibold text-on-primary transition-colors hover:bg-primary-active focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+            >
+              {status === "passed" ? "Verifikasi Lagi" : "Coba Lagi"}
+            </button>
+          </div>
+        ) : isIntroIdle ? (
           <div className="flex flex-col">
             <div className="liveness-glass-surface rounded-2xl px-6 pt-8 pb-6">
               <div className="flex justify-center mb-5" aria-hidden>
@@ -594,7 +647,8 @@ export function LivenessCamera({
         ) : (
         /* Camera View */
         <div className="mb-4 flex w-full justify-center">
-          <div className="liveness-glass-camera relative mx-auto aspect-[3/4] h-[min(58dvh,520px)] w-auto max-w-full overflow-hidden rounded-2xl bg-gradient-to-br from-white/25 via-white/10 to-primary/5 sm:h-[min(62dvh,560px)]">
+          <div className="liveness-glass-camera relative mx-auto aspect-[3/4] h-[min(58dvh,520px)] w-auto max-w-full rounded-2xl sm:h-[min(62dvh,560px)]">
+          <div className="absolute inset-0 overflow-hidden rounded-2xl bg-gradient-to-br from-white/25 via-white/10 to-primary/5">
           {/* Loading spinner */}
           {(status === "initializing" || status === "processing") && (
             <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-md">
@@ -651,57 +705,9 @@ export function LivenessCamera({
             </>
           )}
 
-          {/* Success overlay */}
-          {status === "passed" && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/75 px-4 backdrop-blur-xl sm:gap-4 sm:px-6">
-              <div className="flex h-20 w-20 items-center justify-center rounded-full border border-white/60 bg-semantic-up/15 backdrop-blur-sm">
-                <svg
-                  className="w-12 h-12 text-semantic-up"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-              </div>
-              <p className="text-center text-[clamp(1.125rem,3.5vw,1.5rem)] font-semibold text-ink">
-                Verifikasi Berhasil
-              </p>
-              <button
-                onClick={handleReset}
-                className="px-6 py-3 bg-primary hover:bg-primary-active text-white rounded-pill font-semibold transition-colors"
-              >
-                Verifikasi Lagi
-              </button>
-            </div>
-          )}
-
-          {/* Failed overlay */}
-          {status === "failed" && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-white/75 px-4 backdrop-blur-xl sm:gap-4 sm:px-6">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/60 bg-semantic-down/15 backdrop-blur-sm sm:h-20 sm:w-20">
-                <MdClose className="h-10 w-10 text-semantic-down sm:h-12 sm:w-12" />
-              </div>
-              <p className="text-center text-[clamp(1.125rem,3.5vw,1.5rem)] font-semibold text-ink">
-                Verifikasi Gagal
-              </p>
-              <button
-                onClick={handleReset}
-                className="px-6 py-3 bg-primary hover:bg-primary-active text-white rounded-pill font-semibold transition-colors"
-              >
-                Coba Lagi
-              </button>
-            </div>
-          )}
-
           {/* Hidden canvas for quality processing */}
           <canvas ref={canvasRef} className="hidden" />
+          </div>
           </div>
         </div>
         )}

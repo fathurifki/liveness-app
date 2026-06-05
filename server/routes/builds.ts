@@ -17,6 +17,7 @@ type ReactProjectRequest = {
   primaryModelName?: string
   modelFiles?: string[]
   sdkFiles?: Array<{ path: string; content: string }>
+  indexCss?: string
   theme?: {
     primary?: string
     accent?: string
@@ -38,6 +39,59 @@ type ReactProjectRequest = {
 
 const PACKAGE_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{1,58}[a-z0-9]$/
 const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/
+const BRAND_PRIMARY = '#45b8e8'
+const BRAND_PRIMARY_ACTIVE = '#2da0d4'
+
+const GENERATED_PROJECT_INDEX_CSS = `@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .liveness-glass-surface {
+    @apply backdrop-blur-xl bg-white/80 border border-white/60;
+    box-shadow:
+      0 2px 4px 0 rgba(69, 184, 232, 0.08),
+      0 6px 20px -2px rgba(69, 184, 232, 0.18),
+      0 20px 52px -8px rgba(69, 184, 232, 0.22);
+  }
+  .liveness-glass-camera {
+    @apply backdrop-blur-md bg-white/25 border border-white/40;
+    box-shadow:
+      0 2px 4px 0 rgba(69, 184, 232, 0.08),
+      0 8px 28px -4px rgba(69, 184, 232, 0.20),
+      0 20px 52px -8px rgba(69, 184, 232, 0.18);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+`
+
+async function getGeneratedProjectIndexCss(): Promise<string> {
+  try {
+    const fs = await import('fs/promises')
+    const path = await import('path')
+    const sourcePath = path.join(process.cwd(), 'src/index.css')
+    const source = await fs.readFile(sourcePath, 'utf-8')
+
+    if (
+      source.includes('.liveness-glass-surface')
+      && source.includes('rgba(69, 184, 232')
+    ) {
+      return GENERATED_PROJECT_INDEX_CSS
+    }
+  } catch {}
+
+  return GENERATED_PROJECT_INDEX_CSS
+}
 
 function sanitizePackageName(value: unknown) {
   const normalized = String(value || 'liveness-react-app')
@@ -87,7 +141,8 @@ function buildReactTemplate(input: ReactProjectRequest) {
   const primaryModelName = sanitizeText(input.primaryModelName, 'anti-spoof.onnx', 120)
   const modelFiles = Array.isArray(input.modelFiles) ? input.modelFiles : []
   const sdkFiles = Array.isArray(input.sdkFiles) ? input.sdkFiles : []
-  const primary = sanitizeHexColor(input.theme?.primary, '#0052ff')
+  const primary = sanitizeHexColor(input.theme?.primary, BRAND_PRIMARY)
+  const primaryActive = primary === BRAND_PRIMARY ? BRAND_PRIMARY_ACTIVE : '#003ecc'
   const accent = sanitizeHexColor(input.theme?.accent, '#05b169')
   const radius = sanitizeText(input.theme?.radius, '24px', 16)
   const challengeCount = clampNumber(input.liveness?.challengeCount, 2, 1, 7)
@@ -178,16 +233,14 @@ const config = {
 
 function App() {
   return (
-    <main>
-      <section aria-label="Liveness verification">
-        <LivenessCamera
-          config={config}
-          onResult={(result) => {
-            console.log('Liveness result', result)
-          }}
-        />
-      </section>
-    </main>
+    <div className="min-h-screen bg-gradient-to-b from-canvas via-surface-soft/30 to-canvas">
+      <LivenessCamera
+        config={config}
+        onResult={(result) => {
+          console.log('Liveness result', result)
+        }}
+      />
+    </div>
   )
 }
 
@@ -206,28 +259,45 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: '${primary}',
-        'primary-active': '#003ecc',
-        'primary-disabled': '#a8b8cc',
+        primary: {
+          DEFAULT: '${primary}',
+          active: '${primaryActive}',
+          disabled: '#a8b8cc',
+        },
         ink: '#0a0b0d',
-        body: '#5b616e',
-        'body-strong': '#0a0b0d',
-        muted: '#7c828a',
-        'muted-soft': '#a8acb3',
-        hairline: '#dee1e6',
-        'hairline-soft': '#eef0f3',
+        body: {
+          DEFAULT: '#5b616e',
+          strong: '#0a0b0d',
+        },
+        muted: {
+          DEFAULT: '#7c828a',
+          soft: '#a8acb3',
+        },
+        hairline: {
+          DEFAULT: '#dee1e6',
+          soft: '#eef0f3',
+        },
         canvas: '#ffffff',
-        'surface-soft': '#f7f7f7',
-        'surface-card': '#ffffff',
-        'surface-strong': '#eef0f3',
-        'surface-dark': '#0a0b0d',
-        'surface-dark-elevated': '#16181c',
+        surface: {
+          soft: '#f7f7f7',
+          card: '#ffffff',
+          strong: '#eef0f3',
+          dark: '#0a0b0d',
+          'dark-elevated': '#16181c',
+        },
         'on-primary': '#ffffff',
-        'on-dark': '#ffffff',
-        'on-dark-soft': '#a8acb3',
-        'semantic-up': '#05b169',
-        'semantic-down': '#cf202f',
+        'on-dark': {
+          DEFAULT: '#ffffff',
+          soft: '#a8acb3',
+        },
+        semantic: {
+          up: '#05b169',
+          down: '#cf202f',
+        },
         'accent-yellow': '#f4b000',
+      },
+      fontFamily: {
+        sans: ['Inter', '-apple-system', 'system-ui', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
       },
       borderRadius: {
         none: '0px',
@@ -272,30 +342,7 @@ export default {
     },
     {
       path: 'src/index.css',
-      content: `@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@layer utilities {
-  .liveness-glass-surface {
-    @apply backdrop-blur-xl bg-white/80 border border-white/60 shadow-lg;
-  }
-  .liveness-glass-camera {
-    @apply backdrop-blur-md bg-white/25 border border-white/40;
-  }
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-`,
+      content: input.indexCss || GENERATED_PROJECT_INDEX_CSS,
     },
     {
       path: '.env.example',
@@ -559,12 +606,15 @@ router.post('/react-project', async (req, res) => {
       }
     }
 
+    const indexCss = await getGeneratedProjectIndexCss()
+
     // Pass to template
     const { projectName, files } = buildReactTemplate({
       ...input,
       primaryModelName,
       modelFiles: modelFiles.map(m => m.name),
       sdkFiles,
+      indexCss,
     })
 
     res.status(200)

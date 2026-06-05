@@ -61,9 +61,125 @@ import {
   calculateHeadPose,
   LEFT_EYE_INDICES,
   RIGHT_EYE_INDICES,
+  NOD_STEP_RAD,
+  NOD_TOP_THRESHOLD,
+  NOD_BOTTOM_THRESHOLD,
+  YAW_STEP_RAD,
+  YAW_LEFT_THRESHOLD,
+  YAW_RIGHT_THRESHOLD,
 } from '../utils/challengeDetector'
 import { aggregateScore } from '../utils/scoreAggregator'
 import { nanoid } from '../utils/nanoid'
+
+// ── Detection-based progress computation ──────────────────────────────────
+// Landmark indices (mirroring challengeDetector.ts — not exported from there)
+const MOUTH_TOP = 13
+const MOUTH_BOTTOM = 14
+const MOUTH_LEFT = 61
+const MOUTH_RIGHT = 291
+const MOUTH_OPEN_THRESHOLD = 0.28
+const SMILE_CORNER_LIFT = 0.018
+
+/**
+ * Compute 0-100 detection progress for the current challenge based on
+ * actual face measurements, NOT elapsed time. This prevents progress
+ * from advancing when the user isn't performing the required action.
+ */
+function computeDetectionProgress(
+  type: Challenge['type'],
+  landmarks: FaceLandmark[],
+  challengeState: Record<string, unknown>,
+  nodState: NodChallengeState,
+  yawState: YawChallengeState,
+  headPoseAngles: { yaw: number; pitch: number; roll: number } | null,
+  blinkOnnxState: BlinkOnnxState,
+  smileOnnxState: boolean,
+): number {
+  switch (type) {
+    case 'blink': {
+      const s = challengeState?.blink as { blinkCount: number; lastBlink: number } | undefined
+      const hBlink = s?.blinkCount ?? 0
+      const oBlink = blinkOnnxState?.blinkCount ?? 0
+      const total = Math.max(hBlink, oBlink)
+      return Math.min(Math.round((total / 2) * 100), 100)
+    }
+
+    case 'nod_top':
+    case 'nod_bottom': {
+      const pitch =
+        headPoseAngles?.pitch !== undefined
+          ? headPoseAngles.pitch * 100
+          : calculateHeadPose(landmarks).pitch
+      const delta = getPitchDelta(pitch, nodState)
+      if (delta === null) return 0
+      const useOnnx = headPoseAngles?.pitch !== undefined
+      const threshold = useOnnx ? NOD_STEP_RAD * 100 : (type === 'nod_top' ? NOD_TOP_THRESHOLD : NOD_BOTTOM_THRESHOLD)
+      const ratio = Math.abs(delta) / threshold
+      return Math.min(Math.round(ratio * 100), 100)
+    }
+
+    case 'yaw_left':
+    case 'yaw_right': {
+      const yaw =
+        headPoseAngles?.yaw !== undefined
+          ? headPoseAngles.yaw * 100
+          : calculateHeadPose(landmarks).yaw
+      const delta = getYawDelta(yaw, yawState)
+      if (delta === null) return 0
+      const useOnnx = headPoseAngles?.yaw !== undefined
+      const threshold = useOnnx ? YAW_STEP_RAD * 100 : (type === 'yaw_left' ? YAW_LEFT_THRESHOLD : YAW_RIGHT_THRESHOLD)
+      const ratio = Math.abs(delta) / threshold
+      return Math.min(Math.round(ratio * 100), 100)
+    }
+
+    case 'smile': {
+      // ONNX model says smiling → instant 100%
+      if (smileOnnxState) return 100
+
+      // Heuristic: corner lift vs threshold
+      const isMouthOpen = (() => {
+        const top = landmarks[MOUTH_TOP]
+        const bottom = landmarks[MOUTH_BOTTOM]
+        const left = landmarks[MOUTH_LEFT]
+        const right = landmarks[MOUTH_RIGHT]
+        if (!top || !bottom || !left || !right) return false
+        const vertical = Math.abs(top.y - bottom.y)
+        const horizontal = Math.abs(left.x - right.x)
+        if (horizontal < 1e-5) return false
+        return vertical / horizontal > MOUTH_OPEN_THRESHOLD
+      })()
+      if (isMouthOpen) return 0 // open mouth ≠ smile
+
+      const metrics = computeSmileMetrics(landmarks)
+      const lift = Math.max(0, metrics.leftLift, metrics.rightLift)
+      const ratio = lift / SMILE_CORNER_LIFT
+      return Math.min(Math.round(ratio * 100), 100)
+    }
+
+    case 'open_mouth': {
+      const top = landmarks[MOUTH_TOP]
+      const bottom = landmarks[MOUTH_BOTTOM]
+      const left = landmarks[MOUTH_LEFT]
+      const right = landmarks[MOUTH_RIGHT]
+      if (!top || !bottom || !left || !right) return 0
+      const vertical = Math.abs(top.y - bottom.y)
+      const horizontal = Math.abs(left.x - right.x)
+      if (horizontal < 1e-5) return 0
+      const mar = vertical / horizontal
+      const ratio = mar / MOUTH_OPEN_THRESHOLD
+      return Math.min(Math.round(ratio * 100), 100)
+    }
+
+    case 'gaze_target':
+      // Gaze is a single-step detection, show partial progress
+      // to indicate system is processing, but never goes above 50
+      // so it cannot "complete" without actual detection.
+      return landmarks.length > 0 ? 45 : 0
+
+    default:
+      return 0
+  }
+}
 
 /**
  * Options for the useLiveness hook
@@ -160,7 +276,7 @@ export function useLiveness(options: UseLivenessOptions = {}): UseLivenessReturn
   // State
   const [status, setStatus] = useState<LivenessStatus>('idle')
   const [currentChallenge, setCurrentChallenge] = useState<Challenge | null>(null)
-  const [challengeProgress, setChallengeProgress] = useState<number>(100)
+  const [challengeProgress, setChallengeProgress] = useState<number>(0)
   const [completedChallenges, setCompletedChallenges] = useState<number>(0)
   const [totalChallenges, setTotalChallenges] = useState<number>(0)
   const [qualityWarning, setQualityWarning] = useState<string | null>(null)
@@ -366,7 +482,7 @@ export function useLiveness(options: UseLivenessOptions = {}): UseLivenessReturn
     const heuristicScore = antiSpoofRef.current.getScore()
     const useOnnx = isOnnxReady() && onnxScoreRef.current !== null
     const spoofScore = useOnnx
-      ? onnxScoreRef.current! * 0.5 + heuristicScore * 0.5
+      ? onnxScoreRef.current! * 0.8 + heuristicScore * 0.2
       : heuristicScore
 
     const antiSpoof: AntiSpoofResult = {
@@ -527,11 +643,21 @@ export function useLiveness(options: UseLivenessOptions = {}): UseLivenessReturn
       }
       setStatus('challenge')
 
-      // Update progress (countdown)
+      // Update progress — based on actual detection, NOT elapsed time
       if (challenge.startTime) {
         const elapsed = Date.now() - challenge.startTime
-        const progress = Math.max(0, 100 - (elapsed / challenge.timeoutMs) * 100)
-        setChallengeProgress(progress)
+        // Compute detection-based progress (0-100) from actual face measurements
+        const detectionProgress = computeDetectionProgress(
+          challenge.type,
+          faceResult.landmarks,
+          challengeStateRef.current,
+          nodChallengeRef.current,
+          yawChallengeRef.current,
+          headPoseAnglesRef.current,
+          blinkOnnxRef.current,
+          smileOnnxRef.current,
+        )
+        setChallengeProgress(Math.max(0, detectionProgress))
 
         // Timeout check
         if (elapsed > challenge.timeoutMs) {
@@ -559,7 +685,7 @@ export function useLiveness(options: UseLivenessOptions = {}): UseLivenessReturn
             const nextChallenge = challengesRef.current[currentChallengeIndexRef.current]
             nextChallenge.startTime = Date.now()
             setCurrentChallenge(nextChallenge)
-            setChallengeProgress(100)
+            setChallengeProgress(0)
             challengeStateRef.current = {}
             blinkOnnxRef.current = createBlinkOnnxState()
             smileOnnxRef.current = false
@@ -627,7 +753,7 @@ export function useLiveness(options: UseLivenessOptions = {}): UseLivenessReturn
           const nextChallenge = challengesRef.current[currentChallengeIndexRef.current]
           nextChallenge.startTime = Date.now()
           setCurrentChallenge(nextChallenge)
-          setChallengeProgress(100)
+          setChallengeProgress(0)
           challengeStateRef.current = {}
           blinkOnnxRef.current = createBlinkOnnxState()
           smileOnnxRef.current = false
@@ -709,7 +835,9 @@ export function useLiveness(options: UseLivenessOptions = {}): UseLivenessReturn
         yawDeltaLm,
         yawDeltaOnnx,
         yawPass: isYawPose ? challengePassed : false,
-        antiSpoofScore: onnxScoreRef.current ?? antiSpoofRef.current.getScore(),
+        antiSpoofScore: isOnnxReady() && onnxScoreRef.current !== null
+          ? onnxScoreRef.current! * 0.8 + antiSpoofRef.current.getScore() * 0.2
+          : antiSpoofRef.current.getScore(),
         antiSpoofMethod: isOnnxReady() && onnxScoreRef.current !== null ? 'onnx' : 'heuristic',
         challengeType: currentChallenge2?.type ?? null,
         challengePassed,
@@ -830,7 +958,7 @@ export function useLiveness(options: UseLivenessOptions = {}): UseLivenessReturn
   const reset = useCallback(() => {
     stop()
     setCurrentChallenge(null)
-    setChallengeProgress(100)
+    setChallengeProgress(0)
     setCompletedChallenges(0)
     setTotalChallenges(0)
     setQualityWarning(null)
