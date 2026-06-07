@@ -71,9 +71,20 @@ npm run preview      # preview production build
 - **Labeling**: review session dan label REAL/SPOOF.
 - **Models**: upload ONNX model, lihat versi, dan set model aktif.
 - **Config**: tuning threshold seperti anti-spoof, brightness, blur, dan pass score.
-- **Builder**: generate package SDK dari model dan config aktif.
+- **Builder**: generate package SDK dari model dan config aktif. Mendukung custom API endpoint dan auto-init Git repo.
 - **History**: lihat hasil test dan metadata verifikasi.
 - **Debug Logger**: pantau log runtime saat testing.
+
+## Enkripsi Model (Keamanan)
+
+Agar model AI tidak mudah dicuri orang awam saat aplikasi di-deploy, project ini menyediakan fitur enkripsi XOR. Enkripsi akan menggabungkan semua file `.onnx` menjadi satu file `models.pack.enc` dan mendeskripsikannya di memori (RAM) saat runtime.
+
+Langkah enkripsi:
+```bash
+node scripts/encrypt-models.cjs
+```
+
+Untuk melihat info lebih lanjut tentang batasan keamanan metode ini, lihat [docs/MODEL_ENCRYPTION.md](docs/MODEL_ENCRYPTION.md).
 
 ## Workflow Internal
 

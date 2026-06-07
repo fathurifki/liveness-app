@@ -168,7 +168,10 @@ export default function Builder() {
   const [projectName, setProjectName] = useState('acme-liveness-check')
   const [appTitle, setAppTitle] = useState('ACME Liveness Gate')
   const [apiUrl, setApiUrl] = useState('http://localhost:3001')
+  const [verifyApiUrl, setVerifyApiUrl] = useState('https://api.acme.com/v1/verify/{sessionId}')
+  const [callbackApiUrl, setCallbackApiUrl] = useState('https://api.acme.com/v1/callback/{sessionId}')
   const [publicKey, setPublicKey] = useState('')
+  const [gitRemote, setGitRemote] = useState('')
   const [packageManager, setPackageManager] = useState<PackageManager>('npm')
 
   // SDK Settings - Challenge Configuration
@@ -218,7 +221,10 @@ export default function Builder() {
         projectName,
         appTitle,
         apiUrl,
+        verifyApiUrl,
+        callbackApiUrl,
         publicKey,
+        gitRemote,
         packageManager,
         modelIds: selectedModelIds,
         liveness: {
@@ -291,6 +297,36 @@ export default function Builder() {
                 placeholder="Optional browser-safe key"
                 mono
               />
+              <div className="md:col-span-2">
+                <TextField
+                  label="Verification API URL (Optional)"
+                  value={verifyApiUrl}
+                  onChange={setVerifyApiUrl}
+                  placeholder="https://api.acme.com/v1/verify/{sessionId}"
+                  mono
+                />
+                <p className="mt-1 text-xs text-muted">API to validate the session before starting liveness. Use <code className="bg-surface-strong px-1 rounded">{'{sessionId}'}</code> for dynamic routing.</p>
+              </div>
+              <div className="md:col-span-2">
+                <TextField
+                  label="Callback API URL (Optional)"
+                  value={callbackApiUrl}
+                  onChange={setCallbackApiUrl}
+                  placeholder="https://api.acme.com/v1/callback/{sessionId}"
+                  mono
+                />
+                <p className="mt-1 text-xs text-muted">API to POST results after liveness check completes.</p>
+              </div>
+              <div className="md:col-span-2">
+                <TextField
+                  label="Git Remote URL (Optional)"
+                  value={gitRemote}
+                  onChange={setGitRemote}
+                  placeholder="git@github.com:acme/liveness-web.git"
+                  mono
+                />
+                <p className="mt-1 text-xs text-muted">Auto-initialize Git repository and set this remote origin.</p>
+              </div>
             </div>
           </section>
 

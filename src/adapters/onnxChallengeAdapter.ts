@@ -3,6 +3,7 @@ import type { FaceLandmark } from '../core/types'
 import { drawDualEyePatch, drawMouthPatch } from '../utils/landmarkCrop'
 import { canvasToImageNetTensor, softmaxPositiveClass } from '../utils/onnxPreprocess'
 import { OnnxRunQueue } from '../utils/onnxRunQueue'
+import { loadModel, getModelUrl } from '../utils/modelDecryptor'
 
 const SMILE_MODEL_URL = '/models/smile_detect.onnx'
 
@@ -51,7 +52,11 @@ export async function initChallengeModels(): Promise<void> {
 
     if (!smileSession) {
       try {
-        smileSession = await ort.InferenceSession.create(SMILE_MODEL_URL, opts)
+        // Load model (decrypt if encrypted)
+        const encryptedUrl = getModelUrl(SMILE_MODEL_URL, true)
+        const modelData = await loadModel(encryptedUrl)
+
+        smileSession = await ort.InferenceSession.create(modelData, opts)
         console.log('✅ smile_detect.onnx loaded (smile challenge)')
       } catch (error) {
         console.info('smile_detect.onnx not loaded — using landmark smile', error)

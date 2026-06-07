@@ -1,6 +1,7 @@
 import * as ort from 'onnxruntime-web'
 import type { FaceBox } from '../core/types'
 import { OnnxRunQueue } from '../utils/onnxRunQueue'
+import { loadModel, getModelUrl } from '../utils/modelDecryptor'
 
 const IMAGENET_MEAN = [0.485, 0.456, 0.406] as const
 const IMAGENET_STD = [0.229, 0.224, 0.225] as const
@@ -92,7 +93,11 @@ export function initAntiSpoofModel(modelUrl?: string): Promise<void> {
 
     for (const url of candidates) {
       try {
-        const sess = await ort.InferenceSession.create(url, {
+        // Load model (decrypt if encrypted)
+        const encryptedUrl = getModelUrl(url, true)
+        const modelData = await loadModel(encryptedUrl)
+
+        const sess = await ort.InferenceSession.create(modelData, {
           executionProviders: ['wasm'],
         })
         // Bug fix #2: assign the full state object atomically in one statement.

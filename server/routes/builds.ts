@@ -9,7 +9,10 @@ type ReactProjectRequest = {
   projectName?: string
   appTitle?: string
   apiUrl?: string
+  verifyApiUrl?: string
+  callbackApiUrl?: string
   publicKey?: string
+  gitRemote?: string
   preset?: 'local' | 'staging' | 'prod'
   packageManager?: 'npm' | 'pnpm' | 'yarn'
   includeDocker?: boolean
@@ -133,6 +136,8 @@ function buildReactTemplate(input: ReactProjectRequest) {
   const projectName = sanitizePackageName(input.projectName)
   const appTitle = sanitizeText(input.appTitle, 'Liveness Verification')
   const apiUrl = sanitizeUrl(input.apiUrl, 'http://localhost:3001')
+  const verifyApiUrl = sanitizeText(input.verifyApiUrl, '')
+  const callbackApiUrl = sanitizeText(input.callbackApiUrl, '')
   const publicKey = sanitizeText(input.publicKey, '', 120)
   const preset = input.preset === 'staging' || input.preset === 'prod' ? input.preset : 'local'
   const packageManager = input.packageManager === 'pnpm' || input.packageManager === 'yarn' ? input.packageManager : 'npm'
@@ -212,7 +217,7 @@ function buildReactTemplate(input: ReactProjectRequest) {
     },
     {
       path: 'src/main.tsx',
-      content: `import React from 'react'
+      content: `import React, { useEffect, useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import { LivenessCamera } from './sdk/components/LivenessCamera'
 import './index.css'
@@ -232,12 +237,62 @@ const config = {
 }
 
 function App() {
+  const sessionId = window.location.pathname.replace(/^\\/+/g, '') // strip leading slash
+  const [status, setStatus] = useState<'verifying' | 'ready' | 'error'>(
+    import.meta.env.VITE_VERIFY_API ? 'verifying' : 'ready'
+  )
+
+  useEffect(() => {
+    const verifyApiUrl = import.meta.env.VITE_VERIFY_API
+    if (!verifyApiUrl) return
+
+    if (!sessionId) {
+      setStatus('error')
+      return
+    }
+
+    const url = verifyApiUrl.replace('{sessionId}', sessionId)
+    fetch(url)
+      .then(res => res.ok ? setStatus('ready') : setStatus('error'))
+      .catch(() => setStatus('error'))
+  }, [sessionId])
+
+  if (status === 'verifying') {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-canvas via-surface-soft/30 to-canvas flex items-center justify-center">
+        <div className="text-body text-title-md">Verifying session...</div>
+      </div>
+    )
+  }
+
+  if (status === 'error') {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-canvas via-surface-soft/30 to-canvas flex items-center justify-center">
+        <div className="text-semantic-down text-title-md">Invalid or expired session link.</div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-canvas via-surface-soft/30 to-canvas">
       <LivenessCamera
         config={config}
-        onResult={(result) => {
+        onResult={async (result) => {
           console.log('Liveness result', result)
+          const callbackApiUrl = import.meta.env.VITE_CALLBACK_API
+          if (callbackApiUrl && sessionId) {
+            try {
+              const url = callbackApiUrl.replace('{sessionId}', sessionId)
+              await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(result)
+              })
+              console.log('Callback successful')
+            } catch (err) {
+              console.error('Callback failed', err)
+            }
+          }
         }}
       />
     </div>
@@ -347,6 +402,8 @@ export default {
     {
       path: '.env.example',
       content: `VITE_LIVENESS_API_URL=${apiUrl}
+VITE_VERIFY_API=${verifyApiUrl}
+VITE_CALLBACK_API=${callbackApiUrl}
 VITE_LIVENESS_PUBLIC_KEY=${publicKey}
 VITE_LIVENESS_CHALLENGE_COUNT=${challengeCount}
 VITE_LIVENESS_TIMEOUT_MS=${timeoutSeconds * 1000}
@@ -438,6 +495,8 @@ ${buildCommand}
 ## Environment Variables
 
 - \`VITE_LIVENESS_API_URL\`: Backend/API base URL
+- \`VITE_VERIFY_API\`: (Optional) URL to verify dynamic session ID (e.g. https://api.com/verify/{sessionId})
+- \`VITE_CALLBACK_API\`: (Optional) URL to POST results after liveness (e.g. https://api.com/callback/{sessionId})
 - \`VITE_LIVENESS_PUBLIC_KEY\`: Public SDK key (browser-safe only)
 - \`VITE_LIVENESS_CHALLENGE_COUNT\`: Number of challenges
 - \`VITE_LIVENESS_TIMEOUT_MS\`: Timeout per challenge (ms)
@@ -525,6 +584,62 @@ router.get('/', (req, res) => {
     res.status(500).json({ error: error.message })
   }
 })
+
+import { exec } from 'child_process'
+import { promisify } from 'util'
+import * as os from 'os'
+
+const execAsync = promisify(exec)
+
+async function getGitArchive(gitRemote?: string): Promise<Array<{ path: string; content: Buffer }>> {
+  if (!gitRemote && gitRemote !== '') { // if undefined or null, we might not init
+    // Actually we want to init if either gitRemote is provided OR we just want an empty repo.
+    // Let's init if they explicitly want it. For now we only trigger if gitRemote has string value
+    // or if you want to always init, we can just run it. We'll run it if gitRemote is provided or we just want to.
+  }
+
+  const fs = await import('fs/promises')
+  const path = await import('path')
+
+  // Create temp dir
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'liveness-git-'))
+  const files: Array<{ path: string; content: Buffer }> = []
+
+  try {
+    // Init git
+    await execAsync('git init -b main', { cwd: tempDir })
+
+    // Add remote if provided
+    if (gitRemote && gitRemote.trim() !== '') {
+      await execAsync(`git remote add origin ${gitRemote.trim()}`, { cwd: tempDir })
+    }
+
+    // Read all files in .git directory recursively
+    async function readDir(dir: string, baseRoute: string) {
+      const entries = await fs.readdir(dir, { withFileTypes: true })
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name)
+        const routePath = path.posix.join(baseRoute, entry.name)
+
+        if (entry.isDirectory()) {
+          await readDir(fullPath, routePath)
+        } else if (entry.isFile()) {
+          const content = await fs.readFile(fullPath)
+          files.push({ path: routePath, content })
+        }
+      }
+    }
+
+    await readDir(path.join(tempDir, '.git'), '.git')
+  } catch (err) {
+    console.error('Git init failed:', err)
+  } finally {
+    // Cleanup temp dir
+    await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {})
+  }
+
+  return files
+}
 
 // POST /api/builds/react-project - Generate React project ZIP
 router.post('/react-project', async (req, res) => {
@@ -637,8 +752,16 @@ router.post('/react-project', async (req, res) => {
     }
 
     // Add all model files to public/models/
-    for (const modelFile of modelFiles) {
-      archive.append(modelFile.content, { name: `${projectName}/public/models/${modelFile.name}` })
+    // If the single pack exists, we bundle it instead of individual encrypted models.
+    try {
+      const packPath = path.join(process.cwd(), 'public/models/models.pack.enc')
+      const packContent = await fs.readFile(packPath)
+      archive.append(packContent, { name: `${projectName}/public/models/models.pack.enc` })
+    } catch {
+      // Pack doesn't exist, fallback to individual models
+      for (const modelFile of modelFiles) {
+        archive.append(modelFile.content, { name: `${projectName}/public/models/${modelFile.name}` })
+      }
     }
 
     // Add MediaPipe WASM files
@@ -655,6 +778,14 @@ router.post('/react-project', async (req, res) => {
       }
     } catch (err) {
       console.warn('MediaPipe WASM files not found, skipping:', err)
+    }
+
+    // Add .git directory if gitRemote is provided or explicitly requested
+    if (typeof input.gitRemote === 'string') {
+      const gitFiles = await getGitArchive(input.gitRemote)
+      for (const gitFile of gitFiles) {
+        archive.append(gitFile.content, { name: `${projectName}/${gitFile.path}` })
+      }
     }
 
     await archive.finalize()

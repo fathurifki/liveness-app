@@ -3,6 +3,7 @@ import type { FaceBox } from '../core/types'
 import { drawFaceBoxPatch } from '../utils/landmarkCrop'
 import { canvasToImageNetTensor } from '../utils/onnxPreprocess'
 import { OnnxRunQueue } from '../utils/onnxRunQueue'
+import { loadModel, getModelUrl } from '../utils/modelDecryptor'
 import {
   stepNodPitch,
   stepYawAngle,
@@ -31,7 +32,11 @@ export function initHeadPoseModel(): Promise<void> {
 
   initPromise = (async () => {
     try {
-      headPoseSession = await ort.InferenceSession.create(HEAD_POSE_MODEL_URL, {
+      // Load model (decrypt if encrypted)
+      const encryptedUrl = getModelUrl(HEAD_POSE_MODEL_URL, true)
+      const modelData = await loadModel(encryptedUrl)
+
+      headPoseSession = await ort.InferenceSession.create(modelData, {
         executionProviders: ['wasm'],
       })
       console.log('✅ head_pose_model.onnx loaded (nod / yaw challenges)')
