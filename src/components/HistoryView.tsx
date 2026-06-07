@@ -4,11 +4,14 @@ import {
   deleteSession,
   clearHistory,
   getHistoryStats,
+  markAsSynced,
   type SessionHistoryEntry,
 } from '../utils/historyStorage'
 import { generateReport, getModelInfo } from '../utils/reportGenerator'
 import type { ReportData } from '../utils/reportGenerator'
 import { DEFAULT_CONFIG } from '../core/types'
+// @ts-ignore
+import { api } from '../lib/api'
 
 interface HistoryViewProps {
   onClose: () => void
@@ -18,6 +21,7 @@ export function HistoryView({ onClose }: HistoryViewProps) {
   const [history, setHistory] = useState<SessionHistoryEntry[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [uploading, setUploading] = useState<string | null>(null)
 
   useEffect(() => {
     setHistory(loadHistory())
@@ -65,6 +69,59 @@ export function HistoryView({ onClose }: HistoryViewProps) {
     }
   }
 
+  const handleSendToLabeling = async (entry: SessionHistoryEntry) => {
+    if (!entry.screenshot) {
+      alert('Tidak ada screenshot tersimpan untuk session ini')
+      return
+    }
+
+    try {
+      setUploading(entry.id)
+      const res = await fetch(entry.screenshot)
+      const blob = await res.blob()
+
+      const file = new File([blob], `screenshot-${entry.id}.jpg`, { type: 'image/jpeg' })
+      const formData = new FormData()
+      formData.append('video', file)
+      formData.append('metadata', JSON.stringify({
+        source: 'test_sdk_manual',
+        score: entry.score,
+        status: entry.status,
+        failReason: entry.failReason,
+        originalId: entry.id,
+        challenges: entry.challenges
+      }))
+
+      await api.createSession(formData)
+      markAsSynced(entry.id)
+      setHistory(loadHistory())
+      return true
+    } catch (error) {
+      console.error('Failed to send to labeling:', error)
+      return false
+    } finally {
+      setUploading(null)
+    }
+  }
+
+  const handleSyncAll = async () => {
+    const unsynced = history.filter(e => !e.isSynced)
+    if (unsynced.length === 0) {
+      alert('Semua data sudah tersinkronisasi')
+      return
+    }
+
+    if (!confirm(`Sinkronkan ${unsynced.length} data ke Labeling Tool?`)) return
+
+    let success = 0
+    for (const entry of unsynced) {
+      const ok = await handleSendToLabeling(entry)
+      if (ok) success++
+    }
+
+    alert(`✓ ${success}/${unsynced.length} data berhasil dikirim ke Labeling Tool`)
+  }
+
   const handleGenerateReport = async (entry: SessionHistoryEntry) => {
     const reportData: ReportData = {
       result: entry.result,
@@ -109,12 +166,6 @@ export function HistoryView({ onClose }: HistoryViewProps) {
       minute: '2-digit',
     })
 
-  const formatDuration = (challenges: typeof history[0]['result']['challengesPassed']) => {
-    if (challenges.length === 0) return '-'
-    const total = challenges.reduce((sum, ch) => sum + ch.duration, 0)
-    return `${(total / 1000).toFixed(1)}s`
-  }
-
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
       {/* Header */}
@@ -132,13 +183,20 @@ export function HistoryView({ onClose }: HistoryViewProps) {
             <p className="text-gray-400 text-xs mt-0.5">{stats.total} session tersimpan</p>
           </div>
         </div>
-        {history.length > 0 && (
-          <button
-            onClick={handleClearAll}
-            className="text-xs text-red-400 hover:text-red-300 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
-          >
-            Hapus Semua
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleSyncAll}
+              className="text-xs text-blue-400 hover:text-blue-300 px-3 py-1.5 rounded-lg border border-blue-500/30 hover:bg-blue-500/10 transition-colors"
+            >
+              🔄 Sinkronkan Semua
+            </button>
+            <button
+              onClick={handleClearAll}
+              className="text-xs text-red-400 hover:text-red-300 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
+            >
+              Hapus Semua
+            </button>
+          </div>
         )}
       </div>
 
@@ -212,6 +270,7 @@ export function HistoryView({ onClose }: HistoryViewProps) {
                   />
                 </th>
                 <th className="px-4 py-3">Waktu</th>
+                <th className="px-4 py-3">Sync</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Score</th>
                 <th className="px-4 py-3">Challenges</th>
@@ -239,27 +298,42 @@ export function HistoryView({ onClose }: HistoryViewProps) {
                     {formatDate(entry.timestamp)}
                   </td>
                   <td className="px-4 py-3">
+                    {entry.isSynced ? (
+                      <span className="text-green-500" title="Synced to Labeling Tool">✓</span>
+                    ) : (
+                      <span className="text-gray-600" title="Not synced">○</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
                     <span
                       className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${
-                        entry.result.status === 'passed'
+                        entry.status === 'passed'
                           ? 'bg-green-500/20 text-green-400'
                           : 'bg-red-500/20 text-red-400'
                       }`}
                     >
-                      {entry.result.status === 'passed' ? '✓ PASS' : '✗ FAIL'}
+                      {entry.status === 'passed' ? '✓ PASS' : '✗ FAIL'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-white font-mono text-sm">
-                    {entry.result.score.toFixed(1)}
+                    {entry.score.toFixed(1)}
                   </td>
                   <td className="px-4 py-3 text-gray-300 text-xs">
-                    {entry.result.challengesPassed.map(ch => ch.type).join(', ') || '-'}
+                    {entry.challenges.map(ch => ch.type).join(', ') || '-'}
                   </td>
                   <td className="px-4 py-3 text-gray-400 text-xs">
-                    {formatDuration(entry.result.challengesPassed)}
+                    {entry.duration.toFixed(1)}s
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => handleSendToLabeling(entry)}
+                        disabled={uploading === entry.id || !entry.screenshot}
+                        className="px-2 py-1 text-xs text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 rounded transition-colors disabled:opacity-50"
+                        title="Send to Labeling"
+                      >
+                        🏷️
+                      </button>
                       <button
                         onClick={() => setExpandedId(expandedId === entry.id ? null : entry.id)}
                         className="px-2 py-1 text-xs text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded transition-colors"
@@ -319,32 +393,28 @@ export function HistoryView({ onClose }: HistoryViewProps) {
                       </div>
                       <div>
                         <p className="text-gray-400 text-xs">Anti-Spoof</p>
-                        <p className="text-white">{entry.result.antiSpoof.isReal ? 'REAL' : 'FAKE'} ({(entry.result.antiSpoof.score * 100).toFixed(1)}%)</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-400 text-xs">Method</p>
-                        <p className="text-white">{entry.result.antiSpoof.method}</p>
+                        <p className="text-white">{entry.antiSpoofScore !== undefined ? (entry.antiSpoofScore * 100).toFixed(1) + '%' : 'N/A'}</p>
                       </div>
                     </div>
 
                     <div>
                       <p className="text-gray-400 text-xs mb-2">Challenges</p>
                       <div className="space-y-1">
-                        {entry.result.challengesPassed.map((ch, i) => (
+                        {entry.challenges.map((ch, i) => (
                           <div key={i} className="flex items-center justify-between bg-gray-700/50 px-3 py-2 rounded">
                             <span className="text-white text-sm">{ch.type}</span>
-                            <span className={`text-xs font-bold ${ch.passed ? 'text-green-400' : 'text-red-400'}`}>
-                              {ch.passed ? '✓ PASS' : '✗ FAIL'} ({ch.duration}ms)
+                            <span className={`text-xs font-bold ${ch.completed ? 'text-green-400' : 'text-red-400'}`}>
+                              {ch.completed ? '✓ PASS' : '✗ FAIL'} ({ch.duration}s)
                             </span>
                           </div>
                         ))}
                       </div>
                     </div>
 
-                    {entry.result.failReason && (
+                    {entry.failReason && (
                       <div>
                         <p className="text-gray-400 text-xs">Fail Reason</p>
-                        <p className="text-red-400">{entry.result.failReason}</p>
+                        <p className="text-red-400">{entry.failReason}</p>
                       </div>
                     )}
                   </div>

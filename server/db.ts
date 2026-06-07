@@ -29,6 +29,7 @@ export function initDatabase() {
       timestamp INTEGER NOT NULL,
       video_path TEXT NOT NULL,
       duration INTEGER,
+      media_type TEXT DEFAULT 'video' CHECK(media_type IN ('video', 'image')),
       status TEXT DEFAULT 'unlabeled' CHECK(status IN ('unlabeled', 'labeled', 'skipped')),
       label TEXT CHECK(label IN ('REAL', 'SPOOF', NULL)),
       labeled_by TEXT,
@@ -106,8 +107,8 @@ export function getQueries() {
     getSessionById: db.prepare('SELECT * FROM sessions WHERE id = ?'),
     getSessionsByStatus: db.prepare('SELECT * FROM sessions WHERE status = ? ORDER BY created_at DESC'),
     insertSession: db.prepare(`
-      INSERT INTO sessions (id, timestamp, video_path, duration, metadata)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO sessions (id, timestamp, video_path, duration, metadata, media_type)
+      VALUES (?, ?, ?, ?, ?, ?)
     `),
     updateSessionLabel: db.prepare(`
       UPDATE sessions
@@ -125,7 +126,10 @@ export function getQueries() {
     `),
     setActiveModel: db.prepare('UPDATE models SET is_active = CASE WHEN id = ? THEN 1 ELSE 0 END'),
 
-    // Configurations
+    insertTestResult: db.prepare(`
+      INSERT INTO test_results (id, config_id, session_id, predicted_label, confidence, passed, score)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `),
     getAllConfigs: db.prepare('SELECT * FROM configurations ORDER BY created_at DESC'),
     getConfigById: db.prepare('SELECT * FROM configurations WHERE id = ?'),
     insertConfig: db.prepare(`

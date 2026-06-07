@@ -1,27 +1,35 @@
-const API_BASE_URL = 'http://localhost:3001/api'
+const API_BASE_URL = `http://${window.location.hostname}:3001/api`
 
 export const api = {
   // Stats
   async getStats() {
     const res = await fetch(`${API_BASE_URL}/stats`)
-    return res.json()
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch stats')
+    return data
   },
 
   async getLabelingStats() {
     const res = await fetch(`${API_BASE_URL}/stats/labeling`)
-    return res.json()
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch labeling stats')
+    return data
   },
 
   // Sessions
   async getSessions(params?: { status?: string; label?: string; limit?: number; offset?: number }) {
     const query = new URLSearchParams(params as any).toString()
     const res = await fetch(`${API_BASE_URL}/sessions?${query}`)
-    return res.json()
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch sessions')
+    return data
   },
 
   async getSession(id: string) {
     const res = await fetch(`${API_BASE_URL}/sessions/${id}`)
-    return res.json()
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch session')
+    return data
   },
 
   async createSession(formData: FormData) {
@@ -29,7 +37,9 @@ export const api = {
       method: 'POST',
       body: formData,
     })
-    return res.json()
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to create session')
+    return data
   },
 
   async deleteSession(id: string) {

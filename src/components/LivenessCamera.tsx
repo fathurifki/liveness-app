@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { MdClose, MdCheckCircle, MdOutlineFace } from "react-icons/md";
 import { useLiveness } from "../hooks/useLiveness";
+import {
+  saveSessionToHistory,
+  markAsSynced
+} from "../utils/historyStorage";
 import { DEFAULT_CONFIG } from "../core/types";
 import type {
   LivenessCheckResult,
@@ -12,6 +16,7 @@ import type {
 import { DebugOverlay } from "./DebugOverlay";
 import { normalizeEnabledChallenges } from "../utils/challengeDetector";
 import { getModelInfo } from "../utils/reportGenerator";
+import { api } from "../lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -207,13 +212,11 @@ export function LivenessCamera({
   );
 
   // ── Report state ───────────────────────────────────────────────────────────
-  const [challengeScreenshots, setChallengeScreenshots] = useState<
-    Array<{
-      challengeType: string;
-      timestamp: string;
-      image: string;
-    }>
-  >([]);
+  const screenshotsRef = useRef<Array<{
+    challengeType: string;
+    timestamp: string;
+    image: string;
+  }>>([]);
 
   // ── Capture screenshot per challenge ───────────────────────────────────────
   const handleChallengeComplete = useCallback(
@@ -230,16 +233,13 @@ export function LivenessCamera({
       ctx.translate(c.width, 0);
       ctx.scale(-1, 1);
       ctx.drawImage(video, 0, 0);
-      const screenshot = c.toDataURL("image/jpeg", 0.88);
+      const screenshot = c.toDataURL("image/jpeg", 0.5);
 
-      setChallengeScreenshots((prev) => [
-        ...prev,
-        {
-          challengeType,
-          timestamp: new Date().toISOString(),
-          image: screenshot,
-        },
-      ]);
+      screenshotsRef.current.push({
+        challengeType,
+        timestamp: new Date().toISOString(),
+        image: screenshot,
+      });
     },
     [],
   );
@@ -335,11 +335,74 @@ export function LivenessCamera({
   const latestResultRef = useRef<LivenessCheckResult | null>(null);
 
   const handleResult = useCallback(
-    (result: LivenessCheckResult) => {
+    async (result: LivenessCheckResult) => {
       latestResultRef.current = result;
       onResult?.(result);
+
+      // Process history and sync
+      const video = videoRef.current;
+      if (!video || video.videoWidth === 0) return;
+
+      const c = document.createElement("canvas");
+      c.width = video.videoWidth;
+      c.height = video.videoHeight;
+      const ctx = c.getContext("2d");
+      if (!ctx) return;
+
+      // Mirror to match displayed video
+      ctx.translate(c.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, 0, 0);
+
+      const screenshot = c.toDataURL("image/jpeg", 0.5);
+
+      // Sync all challenge screenshots to server for per-challenge labeling
+      const uploadScreenshots = async () => {
+        const screenshots = screenshotsRef.current;
+        if (screenshots.length === 0) {
+          // If no challenge screenshots, upload at least the final one
+          await uploadSingleImage(screenshot, "final_capture", result);
+          saveSessionToHistory(result, screenshot, true, []);
+          return;
+        }
+
+        // Upload each challenge screenshot as a separate session for labeling
+        const uploadPromises = screenshots.map((ss, index) =>
+          uploadSingleImage(ss.image, ss.challengeType, result, index)
+        );
+
+        try {
+          await Promise.all(uploadPromises);
+          saveSessionToHistory(result, screenshot, true, screenshots);
+          console.log(`✅ Auto-sync ${screenshots.length} challenges to Labeling Tool success`);
+        } catch (error) {
+          console.error("❌ Auto-sync failed:", error);
+          saveSessionToHistory(result, screenshot, false, screenshots);
+        }
+      };
+
+      const uploadSingleImage = async (dataUrl: string, challengeType: string, res: LivenessCheckResult, index?: number) => {
+        const blob = await fetch(dataUrl).then((r) => r.blob());
+        const file = new File([blob], `sdk-${res.sessionId}-${challengeType}.jpg`, {
+          type: "image/jpeg",
+        });
+        const formData = new FormData();
+        formData.append("video", file);
+        formData.append("metadata", JSON.stringify({
+          source: "test_sdk_auto",
+          score: res.score,
+          status: res.status,
+          failReason: res.failReason,
+          originalId: res.sessionId,
+          challenge_type: challengeType,
+          challenge_index: index
+        }));
+        return api.createSession(formData);
+      };
+
+      uploadScreenshots();
     },
-    [onResult],
+    [onResult, onCapture]
   );
 
   const {
@@ -361,100 +424,6 @@ export function LivenessCamera({
     onDebug: handleDebug,
     onDebugLog: handleDebugLog,
   });
-
-  // ── Capture screenshot when verification passes or fails ─────────────────
-  useEffect(() => {
-    if (status !== "passed" && status !== "failed") return;
-    const video = videoRef.current;
-    const result = latestResultRef.current;
-    if (!video || !result || video.videoWidth === 0) return;
-
-    const c = document.createElement("canvas");
-    c.width = video.videoWidth;
-    c.height = video.videoHeight;
-    const ctx = c.getContext("2d");
-    if (!ctx) return;
-    // Mirror to match displayed video
-    ctx.translate(c.width, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(video, 0, 0);
-    const screenshot = c.toDataURL("image/jpeg", 0.88);
-
-    // Call onCapture if provided
-    if (onCapture) {
-      onCapture(screenshot, result);
-    }
-
-    // Save to history
-    const modelInfo = getModelInfo();
-
-    // Map challenge types to instructions
-    const getChallengeInstruction = (type: ChallengeType): string => {
-      const map: Record<ChallengeType, string> = {
-        blink: "Kedip 2x",
-        nod_top: "Angguk ke atas",
-        nod_bottom: "Angguk ke bawah",
-        yaw_left: "Toleh ke kiri",
-        yaw_right: "Toleh ke kanan",
-        smile: "Senyum",
-        open_mouth: "Buka mulut",
-        gaze_target: "Lihat titik merah",
-      };
-      return map[type] || type;
-    };
-
-    const historyEntry = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      timestamp: new Date().toISOString(),
-      status: result.status,
-      score: result.score,
-      duration: (Date.now() - (result.timestamp || Date.now())) / 1000,
-      challenges: (result.challengesPassed || []).map((ch) => ({
-        type: ch.type,
-        instruction: getChallengeInstruction(ch.type),
-        completed: ch.passed,
-        duration: ch.duration / 1000, // convert ms to seconds
-      })),
-      failReason: result.failReason,
-      antiSpoofScore: result.antiSpoof?.score,
-      qualityChecks: {
-        brightness: result.quality?.brightness > 0,
-        sharpness: result.quality?.blurScore > 0,
-        faceSize: result.quality?.faceSize > 0,
-      },
-      screenshot: screenshot,
-      screenshots:
-        challengeScreenshots.length > 0 ? challengeScreenshots : undefined,
-      logs: debugLogs,
-      modelInfo: {
-        faceDetection: "MediaPipe Face Mesh",
-        antiSpoof: modelInfo.antiSpoof.modelName || "Heuristic",
-        blinkDetection: modelInfo.challenges.blink.modelName || "EAR Heuristic",
-        smileDetection:
-          modelInfo.challenges.smile.modelName || "Corner-lift Heuristic",
-      },
-    };
-
-    try {
-      const stored = localStorage.getItem("liveness_history");
-      const history = stored ? JSON.parse(stored) : [];
-      history.unshift(historyEntry);
-      // Keep only last 20 entries to avoid quota issues
-      while (history.length > 20) history.pop();
-      localStorage.setItem("liveness_history", JSON.stringify(history));
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-        console.warn('localStorage quota exceeded, clearing old history');
-        try {
-          localStorage.setItem("liveness_history", JSON.stringify([historyEntry]));
-        } catch {
-          console.error('Failed to save history even after clearing');
-        }
-      } else {
-        console.error('Failed to save liveness history:', error);
-      }
-    }
-  }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Settings helpers ──────────────────────────────────────────────────────
   const handleToggleChallenge = (type: ChallengeType) => {
@@ -494,7 +463,7 @@ export function LivenessCamera({
 
   const handleStart = () => {
     setShowSettings(false);
-    setChallengeScreenshots([]); // Reset screenshots
+    screenshotsRef.current = []; // Reset screenshots ref
     setShowIntro(false); // Hide intro screen
     start();
   };
@@ -503,7 +472,7 @@ export function LivenessCamera({
     reset();
     setShowIntro(true);
     setShowSettings(false);
-    setChallengeScreenshots([]);
+    screenshotsRef.current = [];
   };
 
   const isIntroIdle = showIntro && status === "idle";

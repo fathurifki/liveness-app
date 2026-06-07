@@ -1,24 +1,45 @@
-import type { LivenessCheckResult, DebugMetrics } from '../core/types'
+import type { LivenessCheckResult } from '../core/types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface SessionHistoryEntry {
-  id: string  // sessionId dari LivenessCheckResult
+  id: string
   timestamp: number
-  result: LivenessCheckResult
-  screenshot: string | null
-  debugMetrics: DebugMetrics | null
+  status: 'passed' | 'failed'
+  score: number
+  duration: number
+  challenges: Array<{
+    type: string
+    instruction: string
+    completed: boolean
+    duration: number
+  }>
+  failReason?: string
+  antiSpoofScore?: number
+  qualityChecks: {
+    brightness: boolean
+    sharpness: boolean
+    faceSize: boolean
+  }
+  screenshot?: string
+  screenshots?: Array<{
+    challengeType: string
+    timestamp: string
+    image: string
+  }>
+  isSynced?: boolean
 }
 
-const STORAGE_KEY = 'liveness-history'
-const MAX_HISTORY_ENTRIES = 100  // Limit untuk prevent localStorage overflow
+const STORAGE_KEY = 'liveness_history'
+const MAX_HISTORY_ENTRIES = 50
 
 // ── Storage Functions ─────────────────────────────────────────────────────────
 
 export function saveSessionToHistory(
   result: LivenessCheckResult,
   screenshot: string | null,
-  debugMetrics: DebugMetrics | null
+  isSynced = false,
+  screenshots?: Array<{ challengeType: string, timestamp: string, image: string }>
 ): void {
   try {
     const history = loadHistory()
@@ -26,9 +47,25 @@ export function saveSessionToHistory(
     const entry: SessionHistoryEntry = {
       id: result.sessionId,
       timestamp: result.timestamp,
-      result,
-      screenshot,
-      debugMetrics,
+      status: result.status,
+      score: result.score,
+      duration: (result.challengesPassed || []).reduce((sum, ch) => sum + ch.duration, 0) / 1000,
+      challenges: (result.challengesPassed || []).map(ch => ({
+        type: ch.type,
+        instruction: ch.type, // simplified
+        completed: ch.passed,
+        duration: ch.duration / 1000
+      })),
+      failReason: result.failReason,
+      antiSpoofScore: result.antiSpoof.score,
+      qualityChecks: {
+        brightness: result.quality.brightness > 0,
+        sharpness: result.quality.blurScore > 0,
+        faceSize: result.quality.faceSize > 0
+      },
+      screenshot: screenshot || undefined,
+      screenshots,
+      isSynced
     }
 
     // Add to beginning (newest first)
@@ -63,6 +100,19 @@ export function deleteSession(sessionId: string): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered))
   } catch (error) {
     console.error('Failed to delete session:', error)
+  }
+}
+
+export function markAsSynced(sessionId: string): void {
+  try {
+    const history = loadHistory()
+    const entry = history.find(e => e.id === sessionId)
+    if (entry) {
+      entry.isSynced = true
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(history))
+    }
+  } catch (error) {
+    console.error('Failed to mark as synced:', error)
   }
 }
 
@@ -102,9 +152,9 @@ export function getHistoryStats(): HistoryStats {
     }
   }
 
-  const passed = history.filter(e => e.result.status === 'passed').length
+  const passed = history.filter(e => e.status === 'passed').length
   const failed = history.length - passed
-  const totalScore = history.reduce((sum, e) => sum + e.result.score, 0)
+  const totalScore = history.reduce((sum, e) => sum + e.score, 0)
 
   return {
     total: history.length,

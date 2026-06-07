@@ -53,55 +53,18 @@ export default function History() {
   useEffect(() => {
     const stored = localStorage.getItem('liveness_history')
     if (stored) {
-      const parsed = JSON.parse(stored)
-      setHistory(parsed.map((entry: any) => ({
-        ...entry,
-        timestamp: new Date(entry.timestamp)
-      })))
+      try {
+        const parsed = JSON.parse(stored)
+        setHistory(parsed.map((entry: any) => ({
+          ...entry,
+          timestamp: new Date(entry.timestamp)
+        })))
+      } catch (e) {
+        console.error('Failed to parse history:', e)
+        setHistory([])
+      }
     } else {
-      // Demo data
-      setHistory([
-        {
-          id: '1',
-          timestamp: new Date('2026-05-25T03:45:00'),
-          status: 'passed',
-          score: 85,
-          duration: 4.2,
-          challenges: [
-            { type: 'blink', instruction: 'Kedip 2x', completed: true, duration: 2.1 },
-            { type: 'smile', instruction: 'Senyum', completed: true, duration: 2.1 }
-          ],
-          antiSpoofScore: 0.92,
-          qualityChecks: { brightness: true, sharpness: true, faceSize: true }
-        },
-        {
-          id: '2',
-          timestamp: new Date('2026-05-25T03:30:00'),
-          status: 'failed',
-          score: 45,
-          duration: 6.8,
-          challenges: [
-            { type: 'blink', instruction: 'Kedip 2x', completed: true, duration: 2.3 },
-            { type: 'nod_top', instruction: 'Angguk ke atas', completed: false, duration: 4.5 }
-          ],
-          failReason: 'Challenge timeout',
-          antiSpoofScore: 0.88,
-          qualityChecks: { brightness: true, sharpness: false, faceSize: true }
-        },
-        {
-          id: '3',
-          timestamp: new Date('2026-05-25T03:15:00'),
-          status: 'passed',
-          score: 92,
-          duration: 3.8,
-          challenges: [
-            { type: 'smile', instruction: 'Senyum', completed: true, duration: 1.9 },
-            { type: 'blink', instruction: 'Kedip 2x', completed: true, duration: 1.9 }
-          ],
-          antiSpoofScore: 0.95,
-          qualityChecks: { brightness: true, sharpness: true, faceSize: true }
-        }
-      ])
+      setHistory([])
     }
   }, [])
 
@@ -228,8 +191,6 @@ export default function History() {
     // Model Info
     if (entry.modelInfo && typeof entry.modelInfo === 'object') {
       const info = entry.modelInfo as any
-
-      // Check if we have any model info to display
       const hasNewFormat = typeof info.faceDetection === 'string'
       const hasOldFormat = info.antiSpoof?.modelName
 
@@ -245,66 +206,15 @@ export default function History() {
         doc.setFontSize(10)
 
         if (hasNewFormat) {
-          // New format (flat strings)
-          if (info.faceDetection) {
-            doc.text('Face Detection:', 25, y)
-            setFontStyle('bold')
-            doc.text(info.faceDetection, 70, y)
-            setFontStyle('normal')
-            y += 6
-          }
-          if (info.antiSpoof) {
-            doc.text('Anti-Spoof:', 25, y)
-            setFontStyle('bold')
-            doc.text(info.antiSpoof, 70, y)
-            setFontStyle('normal')
-            y += 6
-          }
-          if (info.blinkDetection) {
-            doc.text('Blink Detection:', 25, y)
-            setFontStyle('bold')
-            doc.text(info.blinkDetection, 70, y)
-            setFontStyle('normal')
-            y += 6
-          }
-          if (info.smileDetection) {
-            doc.text('Smile Detection:', 25, y)
-            setFontStyle('bold')
-            doc.text(info.smileDetection, 70, y)
-            setFontStyle('normal')
-            y += 6
-          }
+          if (info.faceDetection) { doc.text('Face Detection:', 25, y); setFontStyle('bold'); doc.text(info.faceDetection, 70, y); setFontStyle('normal'); y += 6; }
+          if (info.antiSpoof) { doc.text('Anti-Spoof:', 25, y); setFontStyle('bold'); doc.text(info.antiSpoof, 70, y); setFontStyle('normal'); y += 6; }
+          if (info.blinkDetection) { doc.text('Blink Detection:', 25, y); setFontStyle('bold'); doc.text(info.blinkDetection, 70, y); setFontStyle('normal'); y += 6; }
+          if (info.smileDetection) { doc.text('Smile Detection:', 25, y); setFontStyle('bold'); doc.text(info.smileDetection, 70, y); setFontStyle('normal'); y += 6; }
         } else if (hasOldFormat) {
-          // Old format (nested object)
-          doc.text('Face Detection:', 25, y)
-          setFontStyle('bold')
-          doc.text('MediaPipe Face Mesh', 70, y)
-          setFontStyle('normal')
-          y += 6
-
-          if (info.antiSpoof.modelName) {
-            doc.text('Anti-Spoof:', 25, y)
-            setFontStyle('bold')
-            doc.text(info.antiSpoof.modelName, 70, y)
-            setFontStyle('normal')
-            y += 6
-          }
-
-          if (info.challenges?.blink) {
-            doc.text('Blink Detection:', 25, y)
-            setFontStyle('bold')
-            doc.text(info.challenges.blink.modelName || 'EAR Heuristic', 70, y)
-            setFontStyle('normal')
-            y += 6
-          }
-
-          if (info.challenges?.smile) {
-            doc.text('Smile Detection:', 25, y)
-            setFontStyle('bold')
-            doc.text(info.challenges.smile.modelName || 'Corner-lift Heuristic', 70, y)
-            setFontStyle('normal')
-            y += 6
-          }
+          doc.text('Face Detection:', 25, y); setFontStyle('bold'); doc.text('MediaPipe Face Mesh', 70, y); setFontStyle('normal'); y += 6;
+          if (info.antiSpoof.modelName) { doc.text('Anti-Spoof:', 25, y); setFontStyle('bold'); doc.text(info.antiSpoof.modelName, 70, y); setFontStyle('normal'); y += 6; }
+          if (info.challenges?.blink) { doc.text('Blink Detection:', 25, y); setFontStyle('bold'); doc.text(info.challenges.blink.modelName || 'EAR Heuristic', 70, y); setFontStyle('normal'); y += 6; }
+          if (info.challenges?.smile) { doc.text('Smile Detection:', 25, y); setFontStyle('bold'); doc.text(info.challenges.smile.modelName || 'Corner-lift Heuristic', 70, y); setFontStyle('normal'); y += 6; }
         }
         y += 4
       }
@@ -312,186 +222,36 @@ export default function History() {
 
     // Screenshot
     if (entry.screenshot) {
-      if (y > 200) {
-        doc.addPage()
-        y = 20
-      }
-      y += 5
-      doc.setFontSize(14)
-
-      // Use screenshots array if available
-      const screenshots = entry.screenshots && entry.screenshots.length > 0
-        ? entry.screenshots
-        : [{ challengeType: 'final', timestamp: '', image: entry.screenshot }]
-
-      doc.text(`Captured Face (${screenshots.length} ${screenshots.length === 1 ? 'image' : 'images'})`, 20, y)
-      y += 8
-
+      if (y > 200) { doc.addPage(); y = 20; }
+      y += 5; doc.setFontSize(14)
+      const screenshots = entry.screenshots && entry.screenshots.length > 0 ? entry.screenshots : [{ challengeType: 'final', timestamp: '', image: entry.screenshot }]
+      doc.text(`Captured Face (${screenshots.length} ${screenshots.length === 1 ? 'image' : 'images'})`, 20, y); y += 8
       screenshots.forEach((screenshot, idx) => {
-        if (y > 200) {
-          doc.addPage()
-          y = 20
-        }
-
-        // Challenge type label
-        if (screenshot.challengeType !== 'final') {
-          doc.setFontSize(10)
-          doc.setTextColor(100)
-          doc.text(`Challenge: ${screenshot.challengeType}`, 20, y)
-          y += 6
-          doc.setTextColor(0)
-        }
-
-        try {
-          doc.addImage(screenshot.image, 'JPEG', 20, y, 80, 60)
-          y += 65
-        } catch (e) {
-          console.error('Failed to add screenshot to PDF:', e)
-          doc.setFontSize(10)
-          doc.setTextColor(150)
-          doc.text('(Screenshot unavailable)', 20, y)
-          doc.setTextColor(0)
-          y += 10
-        }
-
-        // Add spacing between screenshots
-        if (idx < screenshots.length - 1) {
-          y += 5
-        }
+        if (y > 200) { doc.addPage(); y = 20; }
+        if (screenshot.challengeType !== 'final') { doc.setFontSize(10); doc.setTextColor(100); doc.text(`Challenge: ${screenshot.challengeType}`, 20, y); y += 6; doc.setTextColor(0); }
+        try { doc.addImage(screenshot.image, 'JPEG', 20, y, 80, 60); y += 65; } catch (e) { console.error('Failed to add screenshot to PDF:', e); doc.setFontSize(10); doc.setTextColor(150); doc.text('(Screenshot unavailable)', 20, y); doc.setTextColor(0); y += 10; }
+        if (idx < screenshots.length - 1) y += 5
       })
     }
 
     // Quality Checks
-    if (y > 240) {
-      doc.addPage()
-      y = 20
-    }
-    y += 5
-    doc.setFontSize(14)
-    doc.text('Quality Checks', 20, y)
-    y += 8
-    doc.setFontSize(10)
-
-    doc.text(`Brightness: ${entry.qualityChecks.brightness ? '✓ Pass' : '✗ Fail'}`, 25, y)
-    y += 6
-    doc.text(`Sharpness: ${entry.qualityChecks.sharpness ? '✓ Pass' : '✗ Fail'}`, 25, y)
-    y += 6
-    doc.text(`Face Size: ${entry.qualityChecks.faceSize ? '✓ Pass' : '✗ Fail'}`, 25, y)
-    y += 10
-
-    // Challenges
-    if (entry.challenges.length > 0) {
-      if (y > 230) {
-        doc.addPage()
-        y = 20
-      }
-      y += 5
-      doc.setFontSize(14)
-      doc.text(`Challenges (${entry.challenges.length})`, 20, y)
-      y += 8
-      doc.setFontSize(10)
-
-      entry.challenges.forEach((ch, idx) => {
-        if (y > 250) {
-          doc.addPage()
-          y = 20
-        }
-        doc.text(`${idx + 1}. ${ch.type}`, 25, y)
-        y += 6
-        doc.setTextColor(100)
-        doc.text(`   ${ch.instruction}`, 25, y)
-        y += 6
-        doc.setTextColor(0)
-        doc.text(`   Status: ${ch.completed ? '✓ Completed' : '✗ Failed'} | Duration: ${ch.duration}s`, 25, y)
-        y += 8
-      })
-    } else {
-      if (y > 240) {
-        doc.addPage()
-        y = 20
-      }
-      y += 5
-      doc.setFontSize(14)
-      doc.text('Challenges', 20, y)
-      y += 8
-      doc.setFontSize(10)
-      doc.setTextColor(150)
-      doc.text('No challenges were executed', 25, y)
-      doc.setTextColor(0)
-      y += 10
-    }
-
-    // Fail Reason
-    if (entry.failReason) {
-      if (y > 240) {
-        doc.addPage()
-        y = 20
-      }
-      y += 5
-      doc.setFontSize(14)
-      doc.text('Fail Reason', 20, y)
-      y += 8
-      doc.setFontSize(10)
-      doc.setTextColor(220, 50, 50)
-      const lines = doc.splitTextToSize(entry.failReason, 170)
-      doc.text(lines, 25, y)
-      doc.setTextColor(0)
-      y += lines.length * 6 + 4
-    }
-
-    // Debug Logs
-    if (entry.logs && Array.isArray(entry.logs) && entry.logs.length > 0) {
-      doc.addPage()
-      y = 20
-      doc.setFontSize(14)
-      doc.text(`Debug Logs (${entry.logs.length} entries)`, 20, y)
-      y += 8
-      doc.setFontSize(8)
-      doc.setFont('courier')
-
-      entry.logs.forEach((log) => {
-        if (!log || !log.timestamp || !log.level || !log.message) return
-
-        if (y > 270) {
-          doc.addPage()
-          y = 20
-        }
-
-        const timestamp = format(new Date(log.timestamp), 'HH:mm:ss.SSS')
-        const level = log.level.toUpperCase().padEnd(5)
-
-        // Color by level
-        if (log.level === 'error') {
-          doc.setTextColor(220, 50, 50)
-        } else if (log.level === 'warn') {
-          doc.setTextColor(200, 150, 0)
-        } else {
-          doc.setTextColor(100)
-        }
-
-        const logLine = `[${timestamp}] ${level} ${log.message}`
-        const lines = doc.splitTextToSize(logLine, 170)
-        doc.text(lines, 20, y)
-        y += lines.length * 4
-        doc.setTextColor(0)
-      })
-
-      setFontStyle('normal')
-    }
+    if (y > 240) { doc.addPage(); y = 20; }
+    y += 5; doc.setFontSize(14); doc.text('Quality Checks', 20, y); y += 8; doc.setFontSize(10)
+    doc.text(`Brightness: ${entry.qualityChecks.brightness ? '✓ Pass' : '✗ Fail'}`, 25, y); y += 6
+    doc.text(`Sharpness: ${entry.qualityChecks.sharpness ? '✓ Pass' : '✗ Fail'}`, 25, y); y += 6
+    doc.text(`Face Size: ${entry.qualityChecks.faceSize ? '✓ Pass' : '✗ Fail'}`, 25, y); y += 10
 
     // Footer
     const pageCount = doc.getNumberOfPages()
     for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i)
-      doc.setFontSize(8)
-      doc.setTextColor(150)
+      doc.setPage(i); doc.setFontSize(8); doc.setTextColor(150)
       doc.text('Face Liveness SDK - Production Platform', 105, 285, { align: 'center' })
       doc.text(`Page ${i} of ${pageCount}`, 190, 285, { align: 'right' })
     }
-
-    // Save
     doc.save(`liveness-report-${entry.id}.pdf`)
   }
+
+  const formatDate = (date: Date) => format(date, 'HH:mm:ss')
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -534,7 +294,6 @@ export default function History() {
         {/* Controls */}
         <div className="bg-canvas border border-hairline rounded-xl p-6 mb-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            {/* Search */}
             <div className="flex-1 min-w-[200px] max-w-md relative">
               <MdSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted" />
               <input
@@ -546,16 +305,13 @@ export default function History() {
               />
             </div>
 
-            {/* Filter */}
             <div className="flex gap-2">
               {(['all', 'passed', 'failed'] as const).map(f => (
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
                   className={`px-4 py-2 rounded-pill text-sm font-semibold transition-colors ${
-                    filter === f
-                      ? 'bg-primary text-white'
-                      : 'bg-surface-strong text-body hover:bg-hairline'
+                    filter === f ? 'bg-primary text-white' : 'bg-surface-strong text-body hover:bg-hairline'
                   }`}
                 >
                   {f.charAt(0).toUpperCase() + f.slice(1)}
@@ -563,7 +319,6 @@ export default function History() {
               ))}
             </div>
 
-            {/* Actions */}
             <div className="flex gap-2">
               <button
                 onClick={handleExport}
@@ -582,40 +337,28 @@ export default function History() {
           </div>
         </div>
 
-        {/* History Table */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* List */}
           <div className="bg-canvas border border-hairline rounded-xl overflow-hidden">
             <div className="bg-surface-soft px-6 py-3 border-b border-hairline">
               <span className="text-title-sm text-ink">History ({filteredHistory.length})</span>
             </div>
             <div className="max-h-[600px] overflow-y-auto">
               {paginatedHistory.length === 0 ? (
-                <div className="flex items-center justify-center h-40 text-muted">
-                  No history found
-                </div>
+                <div className="flex items-center justify-center h-40 text-muted">No history found</div>
               ) : (
                 <div className="divide-y divide-hairline">
                   {paginatedHistory.map(entry => (
                     <button
                       key={entry.id}
                       onClick={() => setSelectedEntry(entry)}
-                      className={`w-full px-6 py-4 text-left hover:bg-surface-soft transition-colors ${
-                        selectedEntry?.id === entry.id ? 'bg-surface-soft' : ''
-                      }`}
+                      className={`w-full px-6 py-4 text-left hover:bg-surface-soft transition-colors ${selectedEntry?.id === entry.id ? 'bg-surface-soft' : ''}`}
                     >
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          {entry.status === 'passed' ? (
-                            <MdCheckCircle className="w-5 h-5 text-semantic-up" />
-                          ) : (
-                            <MdCancel className="w-5 h-5 text-semantic-down" />
-                          )}
-                          <span className="text-body-md text-ink font-semibold">#{entry.id}</span>
+                          {entry.status === 'passed' ? <MdCheckCircle className="w-5 h-5 text-semantic-up" /> : <MdCancel className="w-5 h-5 text-semantic-down" />}
+                          <span className="text-body-md text-ink font-semibold">#{entry.id.slice(0, 12)}</span>
                         </div>
-                        <span className="text-caption text-muted">
-                          {format(entry.timestamp, 'HH:mm:ss')}
-                        </span>
+                        <span className="text-caption text-muted">{formatDate(entry.timestamp)}</span>
                       </div>
                       <div className="flex items-center gap-4 text-caption text-body">
                         <span>Score: {entry.score}</span>
@@ -624,211 +367,105 @@ export default function History() {
                         <span>•</span>
                         <span>{entry.challenges.length} challenges</span>
                       </div>
-                      {entry.failReason && (
-                        <div className="mt-2 text-caption text-semantic-down">
-                          {entry.failReason}
-                        </div>
-                      )}
+                      {entry.failReason && <div className="mt-2 text-caption text-semantic-down">{entry.failReason}</div>}
                     </button>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Pagination */}
             {totalPages > 1 && (
               <div className="border-t border-hairline px-6 py-4">
                 <div className="flex items-center justify-between">
-                  <div className="text-caption text-muted">
-                    Showing {startIndex + 1}-{Math.min(endIndex, filteredHistory.length)} of {filteredHistory.length}
-                  </div>
+                  <div className="text-caption text-muted">Showing {startIndex + 1}-{Math.min(endIndex, filteredHistory.length)} of {filteredHistory.length}</div>
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                      className="p-2 rounded-lg hover:bg-surface-soft disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <MdChevronLeft className="w-5 h-5 text-ink" />
-                    </button>
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                        <button
-                          key={page}
-                          onClick={() => setCurrentPage(page)}
-                          className={`w-8 h-8 rounded-lg text-sm font-semibold transition-colors ${
-                            currentPage === page
-                              ? 'bg-primary text-white'
-                              : 'text-ink hover:bg-surface-soft'
-                          }`}
-                        >
-                          {page}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                      className="p-2 rounded-lg hover:bg-surface-soft disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <MdChevronRight className="w-5 h-5 text-ink" />
-                    </button>
+                    <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 rounded-lg hover:bg-surface-soft disabled:opacity-30 transition-colors"><MdChevronLeft className="w-5 h-5 text-ink" /></button>
+                    <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2 rounded-lg hover:bg-surface-soft disabled:opacity-30 transition-colors"><MdChevronRight className="w-5 h-5 text-ink" /></button>
                   </div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Detail */}
           <div className="bg-canvas border border-hairline rounded-xl overflow-hidden">
             <div className="bg-surface-soft px-6 py-3 border-b border-hairline flex items-center justify-between">
               <span className="text-title-sm text-ink">Details</span>
               {selectedEntry && (
-                <button
-                  onClick={() => handleDownloadPDF(selectedEntry)}
-                  className="px-3 py-1.5 bg-primary hover:bg-primary-active text-white rounded-pill text-xs font-semibold transition-colors flex items-center gap-1.5"
-                >
-                  <MdDownload className="w-4 h-4" />
-                  Download PDF
+                <button onClick={() => handleDownloadPDF(selectedEntry)} className="px-3 py-1.5 bg-primary hover:bg-primary-active text-white rounded-pill text-xs font-semibold transition-colors flex items-center gap-1.5">
+                  <MdDownload className="w-4 h-4" /> Download PDF
                 </button>
               )}
             </div>
             <div className="p-6">
               {!selectedEntry ? (
-                <div className="flex items-center justify-center h-40 text-muted">
-                  Select an entry to view details
-                </div>
+                <div className="flex items-center justify-center h-40 text-muted">Select an entry to view details</div>
               ) : (
                 <div className="space-y-6">
-                  {/* Status */}
                   <div>
                     <div className="text-caption text-muted mb-2">Status</div>
                     <div className="flex items-center gap-2">
-                      {selectedEntry.status === 'passed' ? (
-                        <>
-                          <MdCheckCircle className="w-6 h-6 text-semantic-up" />
-                          <span className="text-title-md text-semantic-up">Passed</span>
-                        </>
-                      ) : (
-                        <>
-                          <MdCancel className="w-6 h-6 text-semantic-down" />
-                          <span className="text-title-md text-semantic-down">Failed</span>
-                        </>
-                      )}
+                      {selectedEntry.status === 'passed' ? <><MdCheckCircle className="w-6 h-6 text-semantic-up" /><span className="text-title-md text-semantic-up">Passed</span></> : <><MdCancel className="w-6 h-6 text-semantic-down" /><span className="text-title-md text-semantic-down">Failed</span></>}
                     </div>
                   </div>
-
-                  {/* Metrics */}
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <div className="text-caption text-muted mb-1">Score</div>
-                      <div className="text-title-md text-ink">{selectedEntry.score}</div>
-                    </div>
-                    <div>
-                      <div className="text-caption text-muted mb-1">Duration</div>
-                      <div className="text-title-md text-ink">{selectedEntry.duration}s</div>
-                    </div>
-                    <div>
-                      <div className="text-caption text-muted mb-1">Anti-Spoof</div>
-                      <div className="text-title-md text-ink">
-                        {selectedEntry.antiSpoofScore?.toFixed(2) || 'N/A'}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-caption text-muted mb-1">Timestamp</div>
-                      <div className="text-body-sm text-ink">
-                        {format(selectedEntry.timestamp, 'MMM dd, HH:mm:ss')}
-                      </div>
-                    </div>
+                    <div><div className="text-caption text-muted mb-1">Score</div><div className="text-title-md text-ink">{selectedEntry.score}</div></div>
+                    <div><div className="text-caption text-muted mb-1">Duration</div><div className="text-title-md text-ink">{selectedEntry.duration}s</div></div>
+                    <div><div className="text-caption text-muted mb-1">Anti-Spoof</div><div className="text-title-md text-ink">{selectedEntry.antiSpoofScore?.toFixed(2) || 'N/A'}</div></div>
+                    <div><div className="text-caption text-muted mb-1">Timestamp</div><div className="text-body-sm text-ink">{format(selectedEntry.timestamp, 'MMM dd, HH:mm:ss')}</div></div>
                   </div>
-
-                  {/* Challenges */}
-                  <div>
-                    <div className="text-caption text-muted mb-2">Challenges</div>
-                    <div className="space-y-2">
-                      {selectedEntry.challenges.map((challenge, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between p-3 bg-surface-soft rounded-lg"
-                        >
-                          <div className="flex items-center gap-2">
-                            {challenge.completed ? (
-                              <MdCheckCircle className="w-4 h-4 text-semantic-up" />
-                            ) : (
-                              <MdCancel className="w-4 h-4 text-semantic-down" />
-                            )}
-                            <span className="text-body-sm text-ink">{challenge.instruction}</span>
-                          </div>
-                          <span className="text-caption text-muted">{challenge.duration}s</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Quality Checks */}
-                  <div>
-                    <div className="text-caption text-muted mb-2">Quality Checks</div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {Object.entries(selectedEntry.qualityChecks).map(([key, value]) => (
-                        <div
-                          key={key}
-                          className={`px-3 py-2 rounded-lg text-center text-caption ${
-                            value ? 'bg-semantic-up/10 text-semantic-up' : 'bg-semantic-down/10 text-semantic-down'
-                          }`}
-                        >
-                          {key.charAt(0).toUpperCase() + key.slice(1)}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Screenshot */}
                   {selectedEntry.screenshot && (
                     <div>
-                      <div className="text-caption text-muted mb-2">Captured Face</div>
+                      <div className="text-caption text-muted mb-2">Captured Face (Review)</div>
                       {(() => {
-                        // Use screenshots array if available, otherwise fallback to single screenshot
-                        const screenshots = selectedEntry.screenshots && selectedEntry.screenshots.length > 0
-                          ? selectedEntry.screenshots
+                        const sshots = selectedEntry.screenshots || []
+                        const hasMultiple = sshots.length > 0
+
+                        const screenshots = hasMultiple
+                          ? sshots
                           : [{ challengeType: 'final', timestamp: '', image: selectedEntry.screenshot }]
 
-                        const currentScreenshot = screenshots[currentScreenshotIndex]
+                        const currentScreenshot = screenshots[currentScreenshotIndex] || screenshots[0]
 
                         return (
                           <div>
-                            <div className="relative rounded-lg overflow-hidden border border-hairline">
+                            <div className="relative rounded-lg overflow-hidden border border-hairline bg-surface-dark group">
                               <img
                                 src={currentScreenshot.image}
                                 alt="Face capture"
-                                className="w-full h-auto"
+                                className="w-full aspect-video object-contain"
                               />
-                              {/* Challenge type label */}
                               {currentScreenshot.challengeType !== 'final' && (
-                                <div className="absolute top-2 left-2 bg-primary text-white px-3 py-1 rounded-pill text-xs font-semibold">
+                                <div className="absolute top-2 left-2 bg-primary text-white px-3 py-1 rounded-pill text-[10px] font-bold uppercase shadow-lg">
                                   {currentScreenshot.challengeType}
                                 </div>
                               )}
+
+                              {/* Overlay Navigation for better visibility */}
+                              {screenshots.length > 1 && (
+                                <>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setCurrentScreenshotIndex(prev => Math.max(0, prev - 1)) }}
+                                    disabled={currentScreenshotIndex === 0}
+                                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-2 rounded-full disabled:opacity-0 transition-all opacity-0 group-hover:opacity-100"
+                                  >
+                                    <MdChevronLeft className="w-6 h-6" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setCurrentScreenshotIndex(prev => Math.min(screenshots.length - 1, prev + 1)) }}
+                                    disabled={currentScreenshotIndex === screenshots.length - 1}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-2 rounded-full disabled:opacity-0 transition-all opacity-0 group-hover:opacity-100"
+                                  >
+                                    <MdChevronRight className="w-6 h-6" />
+                                  </button>
+                                </>
+                              )}
                             </div>
 
-                            {/* Carousel navigation */}
                             {screenshots.length > 1 && (
-                              <div className="flex items-center justify-between mt-3">
-                                <button
-                                  onClick={() => setCurrentScreenshotIndex(prev => Math.max(0, prev - 1))}
-                                  disabled={currentScreenshotIndex === 0}
-                                  className="p-2 rounded-lg hover:bg-surface-soft disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                >
-                                  <MdChevronLeft className="w-5 h-5 text-ink" />
-                                </button>
-                                <div className="text-caption text-muted">
-                                  {currentScreenshotIndex + 1} / {screenshots.length}
-                                </div>
-                                <button
-                                  onClick={() => setCurrentScreenshotIndex(prev => Math.min(screenshots.length - 1, prev + 1))}
-                                  disabled={currentScreenshotIndex === screenshots.length - 1}
-                                  className="p-2 rounded-lg hover:bg-surface-soft disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                >
-                                  <MdChevronRight className="w-5 h-5 text-ink" />
-                                </button>
+                              <div className="flex items-center justify-center gap-4 mt-3">
+                                <span className="text-[11px] text-muted font-bold tracking-widest uppercase">
+                                  Challenge {currentScreenshotIndex + 1} of {screenshots.length}
+                                </span>
                               </div>
                             )}
                           </div>
@@ -836,119 +473,10 @@ export default function History() {
                       })()}
                     </div>
                   )}
-
-                  {/* Model Info */}
-                  {selectedEntry.modelInfo && typeof selectedEntry.modelInfo === 'object' && (
-                    <div>
-                      <div className="text-caption text-muted mb-2">Model Information</div>
-                      <div className="space-y-2">
-                        {/* Handle both old (nested object) and new (flat strings) format */}
-                        {(() => {
-                          const info = selectedEntry.modelInfo as any
-
-                          // New format (flat strings)
-                          if (typeof info.faceDetection === 'string') {
-                            return (
-                              <>
-                                {info.faceDetection && (
-                                  <div className="flex items-center justify-between px-3 py-2 bg-surface-soft rounded-lg">
-                                    <span className="text-caption text-muted">Face Detection</span>
-                                    <span className="text-body-sm text-ink font-mono">{info.faceDetection}</span>
-                                  </div>
-                                )}
-                                {info.antiSpoof && (
-                                  <div className="flex items-center justify-between px-3 py-2 bg-surface-soft rounded-lg">
-                                    <span className="text-caption text-muted">Anti-Spoof</span>
-                                    <span className="text-body-sm text-ink font-mono">{info.antiSpoof}</span>
-                                  </div>
-                                )}
-                                {info.blinkDetection && (
-                                  <div className="flex items-center justify-between px-3 py-2 bg-surface-soft rounded-lg">
-                                    <span className="text-caption text-muted">Blink Detection</span>
-                                    <span className="text-body-sm text-ink font-mono">{info.blinkDetection}</span>
-                                  </div>
-                                )}
-                                {info.smileDetection && (
-                                  <div className="flex items-center justify-between px-3 py-2 bg-surface-soft rounded-lg">
-                                    <span className="text-caption text-muted">Smile Detection</span>
-                                    <span className="text-body-sm text-ink font-mono">{info.smileDetection}</span>
-                                  </div>
-                                )}
-                              </>
-                            )
-                          }
-
-                          // Old format (nested object) - extract model names
-                          if (info.antiSpoof?.modelName) {
-                            return (
-                              <>
-                                <div className="flex items-center justify-between px-3 py-2 bg-surface-soft rounded-lg">
-                                  <span className="text-caption text-muted">Face Detection</span>
-                                  <span className="text-body-sm text-ink font-mono">MediaPipe Face Mesh</span>
-                                </div>
-                                <div className="flex items-center justify-between px-3 py-2 bg-surface-soft rounded-lg">
-                                  <span className="text-caption text-muted">Anti-Spoof</span>
-                                  <span className="text-body-sm text-ink font-mono">{info.antiSpoof.modelName}</span>
-                                </div>
-                                {info.challenges?.blink && (
-                                  <div className="flex items-center justify-between px-3 py-2 bg-surface-soft rounded-lg">
-                                    <span className="text-caption text-muted">Blink Detection</span>
-                                    <span className="text-body-sm text-ink font-mono">
-                                      {info.challenges.blink.modelName || 'EAR Heuristic'}
-                                    </span>
-                                  </div>
-                                )}
-                                {info.challenges?.smile && (
-                                  <div className="flex items-center justify-between px-3 py-2 bg-surface-soft rounded-lg">
-                                    <span className="text-caption text-muted">Smile Detection</span>
-                                    <span className="text-body-sm text-ink font-mono">
-                                      {info.challenges.smile.modelName || 'Corner-lift Heuristic'}
-                                    </span>
-                                  </div>
-                                )}
-                              </>
-                            )
-                          }
-
-                          return null
-                        })()}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Debug Logs */}
-                  {selectedEntry.logs && Array.isArray(selectedEntry.logs) && selectedEntry.logs.length > 0 && (
-                    <div>
-                      <div className="text-caption text-muted mb-2">Debug Logs ({selectedEntry.logs.length})</div>
-                      <div className="max-h-60 overflow-y-auto bg-surface-soft rounded-lg p-3 space-y-1 font-mono text-xs">
-                        {selectedEntry.logs.map((log, idx) => {
-                          if (!log || !log.timestamp || !log.level || !log.message) return null
-                          return (
-                            <div
-                              key={idx}
-                              className={`${
-                                log.level === 'error' ? 'text-semantic-down' :
-                                log.level === 'warn' ? 'text-yellow-600' :
-                                'text-muted'
-                              }`}
-                            >
-                              <span className="text-muted">[{format(new Date(log.timestamp), 'HH:mm:ss.SSS')}]</span>{' '}
-                              <span className="font-semibold">{log.level.toUpperCase()}</span>{' '}
-                              {log.message}
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Fail Reason */}
                   {selectedEntry.failReason && (
                     <div>
                       <div className="text-caption text-muted mb-2">Fail Reason</div>
-                      <div className="px-4 py-3 bg-semantic-down/10 rounded-lg text-body-sm text-semantic-down">
-                        {selectedEntry.failReason}
-                      </div>
+                      <div className="px-4 py-3 bg-semantic-down/10 rounded-lg text-body-sm text-semantic-down">{selectedEntry.failReason}</div>
                     </div>
                   )}
                 </div>

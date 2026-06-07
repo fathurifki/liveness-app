@@ -4,6 +4,13 @@ import path from 'path'
 import fs from 'fs'
 import { db, queries } from '../db'
 import { nanoid } from 'nanoid'
+import ffmpeg from 'fluent-ffmpeg'
+import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
+// @ts-ignore
+import * as archiverModule from 'archiver'
+const createArchive = (archiverModule.default || archiverModule) as any
+
+ffmpeg.setFfmpegPath(ffmpegInstaller.path)
 
 const router = express.Router()
 
@@ -30,11 +37,11 @@ const upload = multer({
   storage,
   limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['video/webm', 'video/mp4', 'video/ogg']
-    if (allowedTypes.includes(file.mimetype)) {
+    console.log('Upload attempt - mimetype:', file.mimetype);
+    if (file.mimetype.startsWith('video/') || file.mimetype.startsWith('image/')) {
       cb(null, true)
     } else {
-      cb(new Error('Invalid file type. Only video files allowed.'))
+      cb(new Error(`Invalid file type (${file.mimetype}). ERROR_DEBUG_IMAGE_V2`))
     }
   }
 })
@@ -89,8 +96,10 @@ router.get('/:id', (req, res) => {
 // POST /api/sessions - Create new session
 router.post('/', upload.single('video'), (req, res) => {
   try {
+    console.log('POST /api/sessions called');
     if (!req.file) {
-      return res.status(400).json({ error: 'No video file uploaded' })
+      console.log('No file in request');
+      return res.status(400).json({ error: 'No media file uploaded' })
     }
 
     const id = nanoid()
@@ -99,12 +108,20 @@ router.post('/', upload.single('video'), (req, res) => {
     const duration = req.body.duration ? parseInt(req.body.duration) : null
     const metadata = req.body.metadata || '{}'
 
+    console.log('Saving session:', { id, videoPath, metadata });
+
+    let mediaType = 'video'
+    if (req.file.mimetype.startsWith('image/')) {
+      mediaType = 'image'
+    }
+
     queries.insertSession.run(
       id,
       timestamp,
       videoPath,
       duration,
-      metadata
+      metadata,
+      mediaType
     )
 
     const session = queries.getSessionById.get(id)
@@ -142,6 +159,20 @@ router.delete('/:id', (req, res) => {
   }
 })
 
+// Helper: Extract frames from video
+const extractFrames = (videoPath: string, outputDir: string, fps = 1): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true })
+    }
+    ffmpeg(videoPath)
+      .fps(fps)
+      .on('end', () => resolve())
+      .on('error', (err) => reject(err))
+      .save(`${outputDir}/frame-%04d.jpg`)
+  })
+}
+
 // POST /api/sessions/export - Export labeled sessions
 router.post('/export', async (req, res) => {
   try {
@@ -155,30 +186,86 @@ router.post('/export', async (req, res) => {
       return res.status(400).json({ error: 'No labeled sessions to export' })
     }
 
-    // Create CSV
-    const csv = [
-      'id,timestamp,video_path,label,duration,labeled_at',
-      ...sessions.map(s =>
-        `${s.id},${s.timestamp},${s.video_path},${s.label},${s.duration},${s.labeled_at}`
-      )
-    ].join('\n')
-
+    const timestamp = new Date().toISOString().replace(/[-:T]/g, '').split('.')[0]
     const exportDir = path.join(process.cwd(), 'data', 'exports')
     if (!fs.existsSync(exportDir)) {
       fs.mkdirSync(exportDir, { recursive: true })
     }
 
-    const timestamp = new Date().toISOString().split('T')[0]
-    const csvPath = path.join(exportDir, `labeled-data-${timestamp}.csv`)
+    const tempDir = path.join(exportDir, `temp-${timestamp}`)
+    const outZip = path.join(exportDir, `dataset-${timestamp}.zip`)
 
-    fs.writeFileSync(csvPath, csv)
+    // Create struct
+    const dirs = {
+      videosReal: path.join(tempDir, 'videos', 'REAL'),
+      videosSpoof: path.join(tempDir, 'videos', 'SPOOF'),
+      framesReal: path.join(tempDir, 'frames', 'REAL'),
+      framesSpoof: path.join(tempDir, 'frames', 'SPOOF'),
+      imagesReal: path.join(tempDir, 'images', 'REAL'),
+      imagesSpoof: path.join(tempDir, 'images', 'SPOOF'),
+    }
+
+    Object.values(dirs).forEach(dir => fs.mkdirSync(dir, { recursive: true }))
+
+    const metadataRecords = [
+      'id,media_type,label,original_path,dataset_path'
+    ]
+
+    for (const s of sessions) {
+      const srcPath = path.join(process.cwd(), s.video_path)
+      if (!fs.existsSync(srcPath)) continue
+
+      const labelDir = s.label === 'REAL' ? 'REAL' : 'SPOOF'
+      const ext = path.extname(s.video_path)
+      const filename = `${s.id}${ext}`
+
+      if (s.media_type === 'image') {
+        const dest = path.join(tempDir, 'images', labelDir, filename)
+        fs.copyFileSync(srcPath, dest)
+        metadataRecords.push(`${s.id},image,${s.label},${s.video_path},images/${labelDir}/${filename}`)
+      } else {
+        const dest = path.join(tempDir, 'videos', labelDir, filename)
+        fs.copyFileSync(srcPath, dest)
+        metadataRecords.push(`${s.id},video,${s.label},${s.video_path},videos/${labelDir}/${filename}`)
+
+        // Extract frames
+        const frameDir = path.join(tempDir, 'frames', labelDir, s.id)
+        try {
+          await extractFrames(srcPath, frameDir, 2) // 2 fps
+        } catch (e) {
+          console.error(`Failed to extract frames for ${s.id}`, e)
+        }
+      }
+    }
+
+    fs.writeFileSync(path.join(tempDir, 'metadata.csv'), metadataRecords.join('\n'))
+
+    // Create ZIP
+    const output = fs.createWriteStream(outZip)
+    const archive = createArchive('zip', { zlib: { level: 9 } })
+
+    archive.on('error', (err) => {
+      throw err
+    })
+
+    await new Promise((resolve, reject) => {
+      output.on('close', resolve)
+      archive.on('error', reject)
+      archive.pipe(output)
+      archive.directory(tempDir, false)
+      archive.finalize()
+    })
+
+    // Cleanup temp
+    fs.rmSync(tempDir, { recursive: true, force: true })
 
     res.json({
       message: 'Export created',
-      path: csvPath,
+      path: `dataset-${timestamp}.zip`,
       count: sessions.length,
     })
   } catch (error: any) {
+    console.error('Export error:', error)
     res.status(500).json({ error: error.message })
   }
 })
