@@ -11,9 +11,9 @@ import type {
  * Menggabungkan semua sinyal menjadi score final 0–100
  *
  * Weight:
- * - antiSpoof:  45%   ← sinyal terpenting
- * - challenges: 35%
- * - quality:    20%
+ * - antiSpoof:  40%   (turun dari 45%)
+ * - challenges: 45%   (naik dari 35%) ← user effort lebih dihargai
+ * - quality:    15%   (turun dari 20%)
  */
 
 export function aggregateScore(
@@ -24,22 +24,24 @@ export function aggregateScore(
   sessionId: string
 ): LivenessCheckResult {
   // Calculate individual scores
-  const antiSpoofScore = antiSpoof.isReal ? antiSpoof.score * 100 : 0
+  const antiSpoofScore = antiSpoof.isReal ? antiSpoof.score * 100 : Math.min(antiSpoof.score * 100, 40)
 
-  const challengeScore = challenges.length > 0
-    ? (challenges.filter(c => c.passed).length / challenges.length) * 100
-    : 0
+  const allChallengesPassed = challenges.length > 0 && challenges.every(c => c.passed)
+  const challengeScore = allChallengesPassed
+    ? 100
+    : challenges.length > 0
+      ? (challenges.filter(c => c.passed).length / challenges.length) * 100
+      : 0
 
-  const qualityScore = quality.passed ? 100 : 0
+  const qualityScore = quality.passed ? 100 : Math.min(quality.brightness / 2, 50)
 
   // Weighted aggregate
   const finalScore =
-    antiSpoofScore * 0.45 +
-    challengeScore * 0.35 +
-    qualityScore * 0.20
+    antiSpoofScore * 0.40 +
+    challengeScore * 0.45 +
+    qualityScore * 0.15
 
   // Determine pass/fail
-  const allChallengesPassed = challenges.every(c => c.passed)
   const meetsThreshold = finalScore >= config.passScore
   const passed = meetsThreshold && antiSpoof.isReal && allChallengesPassed
 

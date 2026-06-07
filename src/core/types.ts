@@ -61,7 +61,7 @@ export const DEFAULT_CONFIG: LivenessEngineConfig = {
   antiSpoofThreshold: 0.25,  // Turun dari 0.45 → 0.25 karena MiniFASNet terlalu strict
   challengeCount: 2,
   challengeTimeoutMs: 6000,
-  passScore: 70,
+  passScore: 65,
   enabledChallenges: ['blink', 'nod_top', 'nod_bottom', 'yaw_left', 'yaw_right', 'smile', 'open_mouth'],
 }
 

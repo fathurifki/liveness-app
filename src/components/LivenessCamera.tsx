@@ -51,6 +51,23 @@ const CHALLENGE_OPTIONS: ChallengeOption[] = [
 
 // ── Animated progress ─────────────────────────────────────────────────────
 
+function SmoothProgressBar({ value, disabled }: { value: number; disabled?: boolean }) {
+  const clamped = Math.min(100, Math.max(0, Math.round(value)));
+
+  return (
+    <div className="relative h-3 w-full max-w-[280px] overflow-hidden rounded-full bg-surface-strong/30 mx-auto border border-white/20">
+      <div
+        className={`h-full bg-primary transition-all duration-500 ease-out shadow-[0_0_12px_rgba(var(--color-primary-rgb),0.4)] ${
+          disabled ? "opacity-20" : "opacity-100"
+        }`}
+        style={{ width: `${clamped}%` }}
+      />
+      {/* Glossy overlay */}
+      <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+    </div>
+  );
+}
+
 function AnimatedProgress({ value }: { value: number }) {
   const clamped = Math.min(100, Math.max(0, Math.round(value)));
   const [display, setDisplay] = useState(clamped);
@@ -356,28 +373,33 @@ export function LivenessCamera({
 
       const screenshot = c.toDataURL("image/jpeg", 0.5);
 
-      // Sync all challenge screenshots to server for per-challenge labeling
       const uploadScreenshots = async () => {
-        const screenshots = screenshotsRef.current;
-        if (screenshots.length === 0) {
-          // If no challenge screenshots, upload at least the final one
-          await uploadSingleImage(screenshot, "final_capture", result);
-          saveSessionToHistory(result, screenshot, true, []);
-          return;
-        }
-
-        // Upload each challenge screenshot as a separate session for labeling
-        const uploadPromises = screenshots.map((ss, index) =>
-          uploadSingleImage(ss.image, ss.challengeType, result, index)
-        );
+        const screenshots = [...screenshotsRef.current];
 
         try {
-          await Promise.all(uploadPromises);
-          saveSessionToHistory(result, screenshot, true, screenshots);
-          console.log(`✅ Auto-sync ${screenshots.length} challenges to Labeling Tool success`);
+          if (screenshots.length === 0) {
+            // If no challenge screenshots, upload at least the final one
+            await uploadSingleImage(screenshot, "final_capture", result);
+            saveSessionToHistory(result, screenshot, true, []);
+          } else {
+            // Upload each challenge screenshot as a separate session for labeling
+            const uploadPromises = screenshots.map((ss, index) =>
+              uploadSingleImage(ss.image, ss.challengeType, result, index)
+            );
+            await Promise.all(uploadPromises);
+            saveSessionToHistory(result, screenshot, true, screenshots);
+            console.log(`✅ Auto-sync ${screenshots.length} challenges to Labeling Tool success`);
+          }
         } catch (error) {
           console.error("❌ Auto-sync failed:", error);
           saveSessionToHistory(result, screenshot, false, screenshots);
+        } finally {
+          // Stop camera only AFTER screenshots are captured and sync process started
+          if (videoRef.current && videoRef.current.srcObject) {
+            const stream = videoRef.current.srcObject as MediaStream;
+            stream.getTracks().forEach((track) => track.stop());
+            videoRef.current.srcObject = null;
+          }
         }
       };
 
@@ -682,13 +704,13 @@ export function LivenessCamera({
         )}
 
         {/* Progress Indicator - shown during active verification */}
-        {(status === "ready" ||
-          status === "detecting" ||
-          status === "challenge" ||
-          status === "processing") && (
-          <div className="mt-3 bg-transparent px-2 py-2 text-center sm:mt-4">
-            <div className="mb-0.5 font-semibold tracking-tight text-ink text-[clamp(1.75rem,7vw,2.75rem)]">
-              <AnimatedProgress value={progressPercent} />
+        {(status === "challenge" || status === "processing") && (
+          <div className="mt-6 bg-transparent px-2 py-2 text-center sm:mt-8">
+            <div className="mb-4">
+              <SmoothProgressBar
+                value={progressPercent}
+                disabled={qualityWarning === "Wajah tidak terdeteksi"}
+              />
             </div>
             {status === "challenge" && currentChallenge?.instruction && (
               <p className="text-[clamp(0.9375rem,2.8vw,1.0625rem)] font-medium text-body transition-opacity duration-300">

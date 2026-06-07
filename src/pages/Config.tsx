@@ -23,19 +23,20 @@ interface SavedConfig {
 }
 
 const DEFAULT_CONFIG: ConfigValues = {
-  antiSpoofThreshold: 0.70,
+  antiSpoofThreshold: 0.25,
   minBrightness: 40,
   maxBrightness: 220,
-  minBlurScore: 80,
-  minFaceSize: 0.15,
+  minBlurScore: 18,
+  minFaceSize: 0.10,
   maxFaceSize: 0.80,
-  passScore: 70,
+  passScore: 65,
   challengeCount: 2,
-  challengeTimeoutMs: 8000,
+  challengeTimeoutMs: 6000,
 }
 
 export default function Config() {
   const [config, setConfig] = useState<ConfigValues>(DEFAULT_CONFIG)
+  const [activeConfigId, setActiveConfigId] = useState<string | null>(null)
   const [savedConfigs, setSavedConfigs] = useState<SavedConfig[]>([])
   const [presets, setPresets] = useState<any>(null)
   const [saving, setSaving] = useState(false)
@@ -43,9 +44,35 @@ export default function Config() {
   const [saveName, setSaveName] = useState('')
 
   useEffect(() => {
+    const stored = localStorage.getItem('liveness_challenge_config')
+    const storedId = localStorage.getItem('liveness_active_config_id')
+    if (storedId) setActiveConfigId(storedId)
+
+    if (stored) {
+      try {
+        const storedConfig = JSON.parse(stored)
+        setConfig(prev => ({ ...prev, ...storedConfig }))
+      } catch (e) {
+        console.error('Failed to load stored config:', e)
+      }
+    }
     loadConfigs()
     loadPresets()
   }, [])
+
+  useEffect(() => {
+    const configToStore = { ...config }
+    localStorage.setItem('liveness_challenge_config', JSON.stringify(configToStore))
+    if (activeConfigId) {
+      localStorage.setItem('liveness_active_config_id', activeConfigId)
+    } else {
+      localStorage.removeItem('liveness_active_config_id')
+    }
+  }, [config, activeConfigId])
+
+  const isActiveConfig = (savedConfigId: string) => {
+    return activeConfigId === savedConfigId;
+  }
 
   const loadConfigs = async () => {
     try {
@@ -66,17 +93,29 @@ export default function Config() {
   }
 
   const handleSliderChange = (key: keyof ConfigValues, value: number) => {
-    setConfig({ ...config, [key]: value })
+    setConfig(prev => ({ ...prev, [key]: value }))
+    setActiveConfigId(null)
   }
 
   const loadPreset = (presetType: 'strict' | 'balanced' | 'lenient') => {
     if (presets && presets[presetType]) {
-      setConfig(presets[presetType].config)
+      setConfig({ ...DEFAULT_CONFIG, ...presets[presetType].config })
+      setActiveConfigId(`preset-${presetType}`)
     }
   }
 
   const loadSavedConfig = (savedConfig: SavedConfig) => {
-    setConfig(savedConfig.config)
+    // Ensure we parse the config if it's a string (though it should be an object from interface)
+    let parsedConfig = savedConfig.config;
+    if (typeof parsedConfig === 'string') {
+      try {
+        parsedConfig = JSON.parse(parsedConfig);
+      } catch (e) {
+        console.error('Failed to parse saved config string:', e);
+      }
+    }
+    setConfig({ ...DEFAULT_CONFIG, ...parsedConfig })
+    setActiveConfigId(savedConfig.id)
   }
 
   const handleSave = async () => {
@@ -144,19 +183,31 @@ export default function Config() {
               <div className="grid grid-cols-3 gap-3">
                 <button
                   onClick={() => loadPreset('strict')}
-                  className="px-4 py-3 bg-surface-strong hover:bg-hairline text-ink rounded-lg font-semibold transition-colors"
+                  className={`px-4 py-3 rounded-lg font-semibold transition-colors border ${
+                    activeConfigId === 'preset-strict'
+                      ? 'bg-primary text-on-primary border-primary'
+                      : 'bg-surface-soft hover:bg-surface-strong text-ink border-transparent'
+                  }`}
                 >
                   🔒 Strict
                 </button>
                 <button
                   onClick={() => loadPreset('balanced')}
-                  className="px-4 py-3 bg-surface-strong hover:bg-hairline text-ink rounded-lg font-semibold transition-colors"
+                  className={`px-4 py-3 rounded-lg font-semibold transition-colors border ${
+                    activeConfigId === 'preset-balanced'
+                      ? 'bg-primary text-on-primary border-primary'
+                      : 'bg-surface-soft hover:bg-surface-strong text-ink border-transparent'
+                  }`}
                 >
                   ⚖️ Balanced
                 </button>
                 <button
                   onClick={() => loadPreset('lenient')}
-                  className="px-4 py-3 bg-surface-strong hover:bg-hairline text-ink rounded-lg font-semibold transition-colors"
+                  className={`px-4 py-3 rounded-lg font-semibold transition-colors border ${
+                    activeConfigId === 'preset-lenient'
+                      ? 'bg-primary text-on-primary border-primary'
+                      : 'bg-surface-soft hover:bg-surface-strong text-ink border-transparent'
+                  }`}
                 >
                   🔓 Lenient
                 </button>
@@ -382,9 +433,14 @@ export default function Config() {
             {/* Current Config Preview */}
             <div className="bg-canvas border border-hairline rounded-xl p-6">
               <h3 className="text-title-md text-ink mb-4">Current Config</h3>
-              <pre className="text-xs bg-surface-soft p-4 rounded-lg overflow-auto max-h-96 font-mono text-ink">
-                {JSON.stringify(config, null, 2)}
-              </pre>
+              <div className="bg-surface-soft p-4 rounded-lg overflow-auto max-h-96">
+                <pre className="text-xs font-mono text-ink">
+                  {JSON.stringify(config, null, 2)}
+                </pre>
+              </div>
+              <p className="text-[10px] text-muted mt-3 italic text-center">
+                Settings are automatically applied for Test SDK
+              </p>
             </div>
 
             {/* Saved Configurations */}
@@ -394,28 +450,44 @@ export default function Config() {
                 {savedConfigs.length === 0 ? (
                   <p className="text-sm text-muted text-center py-4">No saved configs</p>
                 ) : (
-                  savedConfigs.map((savedConfig) => (
-                    <div
-                      key={savedConfig.id}
-                      className="flex items-center justify-between p-3 bg-surface-soft rounded-lg hover:bg-surface-strong transition-colors"
-                    >
-                      <button
-                        onClick={() => loadSavedConfig(savedConfig)}
-                        className="flex-1 text-left"
+                  savedConfigs.map((savedConfig) => {
+                    const active = isActiveConfig(savedConfig.config);
+                    return (
+                      <div
+                        key={savedConfig.id}
+                        className={`flex items-center justify-between p-3 rounded-lg transition-colors border ${
+                          active
+                            ? 'bg-primary/10 border-primary/50'
+                            : 'bg-surface-soft border-transparent hover:bg-surface-strong'
+                        }`}
                       >
-                        <div className="text-sm font-semibold text-ink">{savedConfig.name}</div>
-                        <div className="text-xs text-muted">
-                          {new Date(savedConfig.created_at * 1000).toLocaleDateString()}
-                        </div>
-                      </button>
-                      <button
-                        onClick={() => handleDelete(savedConfig.id)}
-                        className="ml-2 text-semantic-down hover:opacity-80"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  ))
+                        <button
+                          onClick={() => loadSavedConfig(savedConfig)}
+                          className="flex-1 text-left"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-semibold ${active ? 'text-primary' : 'text-ink'}`}>
+                              {savedConfig.name}
+                            </span>
+                            {active && (
+                              <span className="text-[10px] font-bold bg-primary text-on-primary px-1.5 py-0.5 rounded-full uppercase">
+                                Active
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted">
+                            {new Date(savedConfig.created_at * 1000).toLocaleDateString()}
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(savedConfig.id)}
+                          className="ml-2 text-semantic-down hover:opacity-80"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    )
+                  })
                 )}
               </div>
             </div>

@@ -115,7 +115,7 @@ function computeDetectionProgress(
       const useOnnx = headPoseAngles?.pitch !== undefined
       const threshold = useOnnx ? NOD_STEP_RAD * 100 : (type === 'nod_top' ? NOD_TOP_THRESHOLD : NOD_BOTTOM_THRESHOLD)
       const ratio = Math.abs(delta) / threshold
-      return Math.min(Math.round(ratio * 100), 100)
+      return Math.max(0, Math.min(Math.round(ratio * 100), 100))
     }
 
     case 'yaw_left':
@@ -129,7 +129,7 @@ function computeDetectionProgress(
       const useOnnx = headPoseAngles?.yaw !== undefined
       const threshold = useOnnx ? YAW_STEP_RAD * 100 : (type === 'yaw_left' ? YAW_LEFT_THRESHOLD : YAW_RIGHT_THRESHOLD)
       const ratio = Math.abs(delta) / threshold
-      return Math.min(Math.round(ratio * 100), 100)
+      return Math.max(0, Math.min(Math.round(ratio * 100), 100))
     }
 
     case 'smile': {
@@ -153,7 +153,7 @@ function computeDetectionProgress(
       const metrics = computeSmileMetrics(landmarks)
       const lift = Math.max(0, metrics.leftLift, metrics.rightLift)
       const ratio = lift / SMILE_CORNER_LIFT
-      return Math.min(Math.round(ratio * 100), 100)
+      return Math.max(0, Math.min(Math.round(ratio * 100), 100))
     }
 
     case 'open_mouth': {
@@ -167,7 +167,7 @@ function computeDetectionProgress(
       if (horizontal < 1e-5) return 0
       const mar = vertical / horizontal
       const ratio = mar / MOUTH_OPEN_THRESHOLD
-      return Math.min(Math.round(ratio * 100), 100)
+      return Math.max(0, Math.min(Math.round(ratio * 100), 100))
     }
 
     case 'gaze_target':
@@ -501,6 +501,12 @@ export function useLiveness(options: UseLivenessOptions = {}): UseLivenessReturn
     )
 
     setStatus(result.status)
+
+    // Stop animation loop
+    if (rafIdRef.current) {
+      cancelAnimationFrame(rafIdRef.current)
+      rafIdRef.current = null
+    }
 
     // Callback
     if (options.onResult) {

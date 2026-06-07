@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { ReactNode, useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom'
 import {
   MdHome,
@@ -122,6 +122,19 @@ function TopBar() {
 }
 
 function TestPage() {
+  const [activeConfig, setActiveConfig] = useState<any>(null)
+
+  useEffect(() => {
+    const stored = localStorage.getItem('liveness_challenge_config')
+    if (stored) {
+      try {
+        setActiveConfig(JSON.parse(stored))
+      } catch (e) {
+        console.error('Failed to parse active config:', e)
+      }
+    }
+  }, [])
+
   const handleResult = (result: LivenessCheckResult) => {
     console.log('Liveness Check Result:', result)
     if (result.status === 'passed') {
@@ -132,10 +145,40 @@ function TestPage() {
   }
 
   return (
-    <LivenessCamera
-      config={{ challengeCount: 2, antiSpoofThreshold: 0.6, passScore: 70 }}
-      onResult={handleResult}
-    />
+    <div className="p-8 flex flex-col gap-6">
+      {activeConfig && (
+        <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <MdTune className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-[10px] text-muted font-bold uppercase tracking-wider">Active Configuration</p>
+              <div className="flex gap-4 mt-0.5">
+                <span className="text-sm font-semibold text-ink">
+                  Challenges: <span className="text-primary">{activeConfig.challengeCount}</span>
+                </span>
+                <span className="text-sm font-semibold text-ink">
+                  Threshold: <span className="text-primary">{activeConfig.antiSpoofThreshold}</span>
+                </span>
+                <span className="text-sm font-semibold text-ink">
+                  Timeout: <span className="text-primary">{activeConfig.challengeTimeoutMs / 1000}s</span>
+                </span>
+              </div>
+            </div>
+          </div>
+          <Link to="/config" className="text-xs font-bold text-primary hover:underline uppercase">
+            Change
+          </Link>
+        </div>
+      )}
+
+      <div className="bg-canvas border border-hairline rounded-2xl overflow-hidden shadow-sm">
+        <LivenessCamera
+          onResult={handleResult}
+        />
+      </div>
+    </div>
   )
 }
 
