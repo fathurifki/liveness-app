@@ -9,7 +9,10 @@ import {
   MdPlayArrow,
   MdSettings,
   MdBugReport,
-  MdHistory
+  MdHistory,
+  MdCreditCard,
+  MdFace,
+  MdArrowBack
 } from 'react-icons/md'
 import Dashboard from './pages/Dashboard'
 import Labeling from './pages/Labeling'
@@ -20,6 +23,7 @@ import ChallengeSettings from './pages/ChallengeSettings'
 import DebugLogger from './pages/DebugLogger'
 import History from './pages/History'
 import { LivenessCamera } from './components/LivenessCamera'
+import { KtpVerificationFlow } from './components/KtpCamera'
 import type { LivenessCheckResult } from './core/types'
 
 type SidebarNavItemConfig = {
@@ -39,6 +43,7 @@ const MAIN_NAV_ITEMS: SidebarNavItemConfig[] = [
 
 const BOTTOM_NAV_ITEMS: SidebarNavItemConfig[] = [
   { to: '/test', label: 'Test SDK', icon: <MdPlayArrow className="h-6 w-6" /> },
+  { to: '/test-ktp', label: 'Test KTP', icon: <MdCreditCard className="h-6 w-6" /> },
   {
     to: '/challenge-settings',
     label: 'Challenge Settings',
@@ -121,6 +126,16 @@ function TopBar() {
   )
 }
 
+function TestKtpPage() {
+  return (
+    <div className="h-[calc(100vh-4rem)] p-8 flex flex-col">
+      <div className="max-w-[420px] mx-auto w-full h-full">
+        <KtpVerificationFlow />
+      </div>
+    </div>
+  )
+}
+
 function TestPage() {
   const [activeConfig, setActiveConfig] = useState<any>(null)
 
@@ -197,6 +212,7 @@ function App() {
             <Route path="/builder" element={<Builder />} />
             <Route path="/history" element={<History />} />
             <Route path="/test" element={<TestPage />} />
+            <Route path="/test-ktp" element={<TestKtpPage />} />
             <Route path="/challenge-settings" element={<ChallengeSettings />} />
             <Route path="/debug" element={<DebugLogger />} />
           </Routes>

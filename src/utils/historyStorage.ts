@@ -2,9 +2,18 @@ import type { LivenessCheckResult } from '../core/types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export interface KtpOcrResult {
+  nik: string;
+  nama: string;
+  tempatLahir: string;
+  tanggalLahir: string;
+  alamat: string;
+}
+
 export interface SessionHistoryEntry {
   id: string
   timestamp: number
+  type?: 'liveness' | 'ktp'
   status: 'passed' | 'failed'
   score: number
   duration: number
@@ -28,6 +37,7 @@ export interface SessionHistoryEntry {
     image: string
   }>
   isSynced?: boolean
+  ktpData?: KtpOcrResult
 }
 
 const STORAGE_KEY = 'liveness_history'
@@ -79,6 +89,48 @@ export function saveSessionToHistory(
     localStorage.setItem(STORAGE_KEY, JSON.stringify(history))
   } catch (error) {
     console.error('Failed to save session to history:', error)
+  }
+}
+
+export function saveKtpToHistory(
+  imageUrl: string,
+  ocrData: KtpOcrResult,
+  status: 'passed' | 'failed' = 'passed',
+  failReason?: string
+): void {
+  try {
+    const history = loadHistory()
+
+    const entry: SessionHistoryEntry = {
+      id: `ktp-${Date.now()}`,
+      timestamp: Date.now(),
+      type: 'ktp',
+      status: status,
+      score: status === 'passed' ? 1.0 : 0.0,
+      duration: 0,
+      challenges: [],
+      failReason: failReason,
+      qualityChecks: {
+        brightness: true,
+        sharpness: true,
+        faceSize: true
+      },
+      screenshot: imageUrl,
+      ktpData: ocrData,
+      isSynced: false
+    }
+
+    // Add to beginning (newest first)
+    history.unshift(entry)
+
+    // Limit to MAX_HISTORY_ENTRIES
+    if (history.length > MAX_HISTORY_ENTRIES) {
+      history.splice(MAX_HISTORY_ENTRIES)
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(history))
+  } catch (error) {
+    console.error('Failed to save KTP to history:', error)
   }
 }
 

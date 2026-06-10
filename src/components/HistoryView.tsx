@@ -316,10 +316,14 @@ export function HistoryView({ onClose }: HistoryViewProps) {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-white font-mono text-sm">
-                    {entry.score.toFixed(1)}
+                    {entry.type === 'ktp' ? '-' : entry.score.toFixed(1)}
                   </td>
                   <td className="px-4 py-3 text-gray-300 text-xs">
-                    {entry.challenges.map(ch => ch.type).join(', ') || '-'}
+                    {entry.type === 'ktp' ? (
+                      <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider">KTP</span>
+                    ) : (
+                      entry.challenges?.map(ch => ch.type).join(', ') || '-'
+                    )}
                   </td>
                   <td className="px-4 py-3 text-gray-400 text-xs">
                     {entry.duration.toFixed(1)}s
@@ -392,24 +396,50 @@ export function HistoryView({ onClose }: HistoryViewProps) {
                         <p className="text-white">{formatDate(entry.timestamp)}</p>
                       </div>
                       <div>
-                        <p className="text-gray-400 text-xs">Anti-Spoof</p>
-                        <p className="text-white">{entry.antiSpoofScore !== undefined ? (entry.antiSpoofScore * 100).toFixed(1) + '%' : 'N/A'}</p>
+                        <p className="text-gray-400 text-xs">Type</p>
+                        <p className="text-white capitalize">{entry.type || 'Liveness'}</p>
                       </div>
+                      {entry.type !== 'ktp' && (
+                        <div>
+                          <p className="text-gray-400 text-xs">Anti-Spoof</p>
+                          <p className="text-white">{entry.antiSpoofScore !== undefined ? (entry.antiSpoofScore * 100).toFixed(1) + '%' : 'N/A'}</p>
+                        </div>
+                      )}
                     </div>
 
-                    <div>
-                      <p className="text-gray-400 text-xs mb-2">Challenges</p>
-                      <div className="space-y-1">
-                        {entry.challenges.map((ch, i) => (
-                          <div key={i} className="flex items-center justify-between bg-gray-700/50 px-3 py-2 rounded">
-                            <span className="text-white text-sm">{ch.type}</span>
-                            <span className={`text-xs font-bold ${ch.completed ? 'text-green-400' : 'text-red-400'}`}>
-                              {ch.completed ? '✓ PASS' : '✗ FAIL'} ({ch.duration}s)
-                            </span>
+                    {entry.type === 'ktp' && entry.ktpData ? (
+                      <div>
+                        <p className="text-gray-400 text-xs mb-2">Data KTP Terdeteksi</p>
+                        <div className="bg-gray-700/30 rounded-lg p-3 space-y-2 border border-gray-700">
+                          <div className="flex justify-between">
+                            <span className="text-gray-400 text-xs">NIK</span>
+                            <span className="text-white font-mono text-xs">{entry.ktpData.nik}</span>
                           </div>
-                        ))}
+                          <div className="flex justify-between">
+                            <span className="text-gray-400 text-xs">Nama</span>
+                            <span className="text-white text-xs text-right break-words">{entry.ktpData.nama}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400 text-xs">Tempat/Tgl Lahir</span>
+                            <span className="text-white text-xs">{entry.ktpData.tempatLahir}, {entry.ktpData.tanggalLahir}</span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div>
+                        <p className="text-gray-400 text-xs mb-2">Challenges</p>
+                        <div className="space-y-1">
+                          {entry.challenges?.map((ch, i) => (
+                            <div key={i} className="flex items-center justify-between bg-gray-700/50 px-3 py-2 rounded">
+                              <span className="text-white text-sm">{ch.type}</span>
+                              <span className={`text-xs font-bold ${ch.completed ? 'text-green-400' : 'text-red-400'}`}>
+                                {ch.completed ? '✓ PASS' : '✗ FAIL'} ({ch.duration}s)
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {entry.failReason && (
                       <div>
