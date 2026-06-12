@@ -8,6 +8,16 @@ export interface KtpOcrResult {
   tempatLahir: string;
   tanggalLahir: string;
   alamat: string;
+  rt_rw?: string;
+  kelurahan_desa?: string;
+  kecamatan?: string;
+  agama?: string;
+  jenis_kelamin?: string;
+  golongan_darah?: string;
+  pekerjaan?: string;
+  kewarganegaraan?: string;
+  status_perkawinan?: string;
+  berlaku_hingga?: string;
 }
 
 export interface SessionHistoryEntry {

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import { MdCameraAlt, MdArrowBack } from 'react-icons/md'
-import { saveKtpToHistory } from '../utils/historyStorage'
+import { MdCameraAlt, MdArrowBack, MdRefresh } from 'react-icons/md'
+import { saveKtpToHistory, KtpOcrResult } from '../utils/historyStorage'
+import { scanKTP, KTPFields } from '../utils/ktpScanner'
 
 interface KtpCameraProps {
   onBack: () => void
@@ -243,24 +244,45 @@ function IdPlaceholder({ side }: { side: 'front' | 'back' }) {
 export function KtpVerificationFlow() {
   const [step, setStep] = useState<'instructions' | 'camera' | 'review'>('instructions')
   const [images, setImages] = useState<{ front?: string }>({})
+  const [isScanning, setIsScanning] = useState(false)
+  const [scanProgress, setScanProgress] = useState('')
+  const [ocrData, setOcrData] = useState<KtpOcrResult | null>(null)
 
-  const handleCapture = (_side: 'front' | 'back', image: string) => {
+  const handleCapture = async (_side: 'front' | 'back', image: string) => {
     setImages({ front: image })
-    setStep('review')
-  }
-
-  // Generate fake OCR data for the review screen
-  const dummyOcrData = {
-    nik: "3171234567890123",
-    nama: "BUDI SANTOSO",
-    tempatLahir: "JAKARTA",
-    tanggalLahir: "01-01-1990",
-    alamat: "JL. CONTOH ALAMAT NO. 123"
+    setIsScanning(true)
+    try {
+      const result = await scanKTP(image, (step) => setScanProgress(step))
+      const mappedData: KtpOcrResult = {
+        nik: result.nik || '',
+        nama: result.nama || '',
+        tempatLahir: result.tmp_lahir || '',
+        tanggalLahir: result.tgl_lahir || '',
+        alamat: result.alamat || '',
+        rt_rw: result.rt_rw || '',
+        kelurahan_desa: result.kelurahan_desa || '',
+        kecamatan: result.kecamatan || '',
+        agama: result.agama || '',
+        jenis_kelamin: result.jenis_kelamin || '',
+        golongan_darah: result.golongan_darah || '',
+        pekerjaan: result.pekerjaan || '',
+        kewarganegaraan: result.kewarganegaraan || '',
+        status_perkawinan: result.status_perkawinan || '',
+        berlaku_hingga: result.berlaku_hingga || ''
+      }
+      setOcrData(mappedData)
+      setStep('review')
+    } catch (err) {
+      console.error('OCR Error:', err)
+      alert('Gagal membaca KTP. Silakan ambil ulang.')
+    } finally {
+      setIsScanning(false)
+    }
   }
 
   const handleConfirm = () => {
-    if (!images.front) return
-    saveKtpToHistory(images.front, dummyOcrData, 'passed')
+    if (!images.front || !ocrData) return
+    saveKtpToHistory(images.front, ocrData, 'passed')
     alert('Data KTP Disimpan dan dimasukkan ke History')
     setStep('instructions')
     setImages({}) // Reset state
@@ -269,14 +291,14 @@ export function KtpVerificationFlow() {
   return (
     <div className="relative flex flex-col h-full w-full liveness-glass-surface rounded-xl overflow-hidden shadow-xl">
       {step === 'instructions' ? (
-        <div className="flex flex-col h-full p-8">
-          <div className="flex items-center mb-10">
+        <div className="flex flex-col h-full p-4 overflow-y-auto">
+          <div className="flex items-center w-full shrink-0">
             <button className="p-2 -ml-2 hover:bg-white/40 rounded-full transition-colors text-ink">
               <MdArrowBack className="w-7 h-7" />
             </button>
           </div>
 
-          <div className="flex flex-col items-center text-center mb-12 px-4">
+          <div className="flex flex-col items-center text-center mb-4 px-4 shrink-0">
             <h2 className="text-3xl font-normal text-ink mb-4 tracking-tight">Ambil Foto KTP Anda</h2>
             <p className="text-body text-base leading-relaxed max-w-[280px]">
               Ambil foto bagian depan KTP Anda dengan jelas.
@@ -286,7 +308,7 @@ export function KtpVerificationFlow() {
             </button>
           </div>
 
-          <div className="flex-1 flex flex-col gap-8 max-w-sm mx-auto w-full">
+          <div className="flex-1 flex flex-col justify-center gap-8 max-w-sm mx-auto w-full my-auto">
             <div className="relative">
               <span className="block text-ink font-bold text-sm mb-4 uppercase tracking-wider">Depan</span>
               <IdPlaceholder side="front" />
@@ -298,12 +320,14 @@ export function KtpVerificationFlow() {
             </div>
           </div>
 
-          <button
-            onClick={() => setStep('camera')}
-            className="mt-12 w-full py-5 bg-primary text-on-primary text-lg font-bold rounded-pill shadow-[0_8px_32px_rgba(0,82,255,0.3)] active:scale-[0.98] transition-all hover:bg-primary-active"
-          >
-            {images.front ? 'Ambil Ulang' : 'Lanjut'}
-          </button>
+          <div className="shrink-0 pt-8 mt-auto">
+            <button
+              onClick={() => setStep('camera')}
+              className="w-full py-5 bg-primary text-on-primary text-lg font-bold rounded-pill shadow-[0_8px_32px_rgba(0,82,255,0.3)] active:scale-[0.98] transition-all hover:bg-primary-active"
+            >
+              {images.front ? 'Ambil Ulang' : 'Lanjut'}
+            </button>
+          </div>
         </div>
       ) : step === 'camera' ? (
         <KtpCamera
@@ -313,6 +337,12 @@ export function KtpVerificationFlow() {
         />
       ) : (
         <div className="flex flex-col h-full bg-canvas overflow-y-auto">
+          {isScanning && (
+            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-surface-dark/80 backdrop-blur-sm">
+              <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4" />
+              <p className="text-on-dark font-medium">{scanProgress || 'Memproses KTP...'}</p>
+            </div>
+          )}
           {/* Review Header */}
           <div className="flex items-center px-6 pt-8 pb-4 border-b border-hairline sticky top-0 bg-canvas/90 backdrop-blur-md z-10">
             <button
@@ -348,33 +378,39 @@ export function KtpVerificationFlow() {
                 <span className="text-xs font-bold text-semantic-up bg-semantic-up/10 px-2 py-1 rounded">Berhasil</span>
               </div>
 
-              <div className="grid grid-cols-1 gap-4">
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs font-medium text-muted uppercase tracking-wider">NIK</span>
-                  <span className="text-base font-medium text-ink font-mono">{dummyOcrData.nik}</span>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs font-medium text-muted uppercase tracking-wider">Nama Lengkap</span>
-                  <span className="text-base font-medium text-ink">{dummyOcrData.nama}</span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
+              {ocrData ? (
+                <div className="grid grid-cols-1 gap-4">
                   <div className="flex flex-col gap-1">
-                    <span className="text-xs font-medium text-muted uppercase tracking-wider">Tempat Lahir</span>
-                    <span className="text-base font-medium text-ink">{dummyOcrData.tempatLahir}</span>
+                    <span className="text-xs font-medium text-muted uppercase tracking-wider">NIK</span>
+                    <span className="text-base font-medium text-ink font-mono">{ocrData.nik || '-'}</span>
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs font-medium text-muted uppercase tracking-wider">Tgl Lahir</span>
-                    <span className="text-base font-medium text-ink">{dummyOcrData.tanggalLahir}</span>
-                  </div>
-                </div>
 
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs font-medium text-muted uppercase tracking-wider">Alamat</span>
-                  <span className="text-base font-medium text-ink">{dummyOcrData.alamat}</span>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs font-medium text-muted uppercase tracking-wider">Nama Lengkap</span>
+                    <span className="text-base font-medium text-ink">{ocrData.nama || '-'}</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-medium text-muted uppercase tracking-wider">Tempat Lahir</span>
+                      <span className="text-base font-medium text-ink">{ocrData.tempatLahir || '-'}</span>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-medium text-muted uppercase tracking-wider">Tgl Lahir</span>
+                      <span className="text-base font-medium text-ink">{ocrData.tanggalLahir || '-'}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs font-medium text-muted uppercase tracking-wider">Alamat</span>
+                    <span className="text-base font-medium text-ink">{ocrData.alamat || '-'}</span>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="py-8 text-center text-muted italic">
+                  Gagal mengekstrak data otomatis
+                </div>
+              )}
             </div>
 
             <button

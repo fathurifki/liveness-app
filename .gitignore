@@ -30,4 +30,4 @@ data/
 
 # Model encryption (DO NOT commit key or encrypted models to public repos)
 scripts/model-encryption-key.json
-public/models/*.enc.onnx
+# public/models/*.enc.onnx

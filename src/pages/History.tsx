@@ -479,6 +479,28 @@ export default function History() {
                       <div className="px-4 py-3 bg-semantic-down/10 rounded-lg text-body-sm text-semantic-down">{selectedEntry.failReason}</div>
                     </div>
                   )}
+                  {selectedEntry.ktpData && (
+                    <div className="mt-6 border-t border-hairline pt-6">
+                      <div className="text-caption text-muted mb-4 uppercase tracking-wider font-bold">KTP Data (OCR)</div>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                        <div className="flex flex-col"><span className="text-[10px] text-muted uppercase">NIK</span><span className="text-sm font-mono text-ink">{selectedEntry.ktpData.nik || '-'}</span></div>
+                        <div className="flex flex-col"><span className="text-[10px] text-muted uppercase">Nama</span><span className="text-sm text-ink">{selectedEntry.ktpData.nama || '-'}</span></div>
+                        <div className="flex flex-col"><span className="text-[10px] text-muted uppercase">Tempat Lahir</span><span className="text-sm text-ink">{selectedEntry.ktpData.tempatLahir || '-'}</span></div>
+                        <div className="flex flex-col"><span className="text-[10px] text-muted uppercase">Tanggal Lahir</span><span className="text-sm text-ink">{selectedEntry.ktpData.tanggalLahir || '-'}</span></div>
+                        <div className="flex flex-col"><span className="text-[10px] text-muted uppercase">Jenis Kelamin</span><span className="text-sm text-ink">{selectedEntry.ktpData.jenis_kelamin || '-'}</span></div>
+                        <div className="flex flex-col"><span className="text-[10px] text-muted uppercase">Golongan Darah</span><span className="text-sm text-ink">{selectedEntry.ktpData.golongan_darah || '-'}</span></div>
+                        <div className="flex flex-col col-span-2"><span className="text-[10px] text-muted uppercase">Alamat</span><span className="text-sm text-ink">{selectedEntry.ktpData.alamat || '-'}</span></div>
+                        <div className="flex flex-col"><span className="text-[10px] text-muted uppercase">RT/RW</span><span className="text-sm text-ink">{selectedEntry.ktpData.rt_rw || '-'}</span></div>
+                        <div className="flex flex-col"><span className="text-[10px] text-muted uppercase">Kel/Desa</span><span className="text-sm text-ink">{selectedEntry.ktpData.kelurahan_desa || '-'}</span></div>
+                        <div className="flex flex-col"><span className="text-[10px] text-muted uppercase">Kecamatan</span><span className="text-sm text-ink">{selectedEntry.ktpData.kecamatan || '-'}</span></div>
+                        <div className="flex flex-col"><span className="text-[10px] text-muted uppercase">Agama</span><span className="text-sm text-ink">{selectedEntry.ktpData.agama || '-'}</span></div>
+                        <div className="flex flex-col"><span className="text-[10px] text-muted uppercase">Status Perkawinan</span><span className="text-sm text-ink">{selectedEntry.ktpData.status_perkawinan || '-'}</span></div>
+                        <div className="flex flex-col"><span className="text-[10px] text-muted uppercase">Pekerjaan</span><span className="text-sm text-ink">{selectedEntry.ktpData.pekerjaan || '-'}</span></div>
+                        <div className="flex flex-col"><span className="text-[10px] text-muted uppercase">Kewarganegaraan</span><span className="text-sm text-ink">{selectedEntry.ktpData.kewarganegaraan || '-'}</span></div>
+                        <div className="flex flex-col"><span className="text-[10px] text-muted uppercase">Berlaku Hingga</span><span className="text-sm text-ink">{selectedEntry.ktpData.berlaku_hingga || '-'}</span></div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

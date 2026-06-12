@@ -123,13 +123,26 @@ export function HistoryView({ onClose }: HistoryViewProps) {
   }
 
   const handleGenerateReport = async (entry: SessionHistoryEntry) => {
+    // If it's a liveness entry, it has entry.result and config.
+    // If it's a KTP entry, entry.result might be undefined, so we pass minimal dummy objects
+    // for result & config just to satisfy the ReportData interface if needed,
+    // though the generator handles missing/optional fields now.
     const reportData: ReportData = {
-      result: entry.result,
+      type: entry.type || 'liveness',
+      result: (entry as any).result || {
+        sessionId: entry.id,
+        status: entry.status,
+        score: entry.score,
+        challengesPassed: entry.challenges || [],
+        antiSpoof: { isReal: entry.status === 'passed', score: entry.score, method: 'heuristic' },
+        quality: { passed: true, brightness: 100, blurScore: 100, faceSize: 0.5 },
+      },
       config: DEFAULT_CONFIG,
       screenshot: entry.screenshot,
-      debugMetrics: entry.debugMetrics,
+      debugMetrics: (entry as any).debugMetrics || null,
       modelInfo: getModelInfo(),
       timestamp: entry.timestamp,
+      ktpData: entry.ktpData,
     }
 
     try {
